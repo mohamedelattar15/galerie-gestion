@@ -46,12 +46,28 @@ CREATE TABLE IF NOT EXISTS images (
         REFERENCES images(id, user_id) ON DELETE RESTRICT
 );
 
+CREATE TABLE IF NOT EXISTS search_sessions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    index_fingerprint TEXT NOT NULL,
+    query_vector TEXT NOT NULL,
+    weights TEXT NOT NULL,
+    result_ids TEXT NOT NULL,
+    excluded_id INTEGER,
+    iteration INTEGER NOT NULL DEFAULT 0 CHECK (iteration >= 0),
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_categories_user_parent
     ON categories(user_id, parent_id);
 CREATE INDEX IF NOT EXISTS idx_images_user_created
     ON images(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_images_user_category
     ON images(user_id, category_id);
+CREATE INDEX IF NOT EXISTS idx_search_sessions_user
+    ON search_sessions(user_id, updated_at DESC);
 """
 
 

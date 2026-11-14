@@ -20,7 +20,14 @@ from backend.fre import compute_fre_weights
 from backend.gallery import gallery_api
 from backend.image_io import load_uploaded_image
 from backend.index import DatasetIndex, load_index
-from backend.retrieval import SearchSession, rank_index
+from backend.retrieval import (
+    SearchSession,
+    create_search_session,
+    get_search_session,
+    index_fingerprint,
+    rank_index,
+    update_search_session,
+)
 
 MAX_BATCH_IMAGES = 32
 DEFAULT_TOP_K = 10
@@ -32,13 +39,6 @@ def _get_index() -> DatasetIndex | None:
     if index is not None and not isinstance(index, DatasetIndex):
         raise RuntimeError("L'index configuré a un type inattendu.")
     return index
-
-
-def _get_sessions() -> dict[str, SearchSession]:
-    sessions = current_app.extensions["search_sessions"]
-    if not isinstance(sessions, dict):
-        raise RuntimeError("Le stockage des sessions de recherche est invalide.")
-    return sessions
 
 
 def _parse_top_k(value: Any) -> int:
@@ -169,13 +169,20 @@ class SearchResource(Resource):
         user_id = current_user_id()
         if user_id is None:
             return {"error": "Authentification requise."}, 401
+        current_index_fingerprint = current_app.extensions["cbir_index_fingerprint"]
+        if not isinstance(current_index_fingerprint, str):
+            raise RuntimeError("L'empreinte de l'index de recherche est invalide.")
         session_id = uuid4().hex
-        _get_sessions()[session_id] = SearchSession(
-            owner_user_id=user_id,
-            query_vector=query_vector.copy(),
-            weights=weights,
-            result_ids=result_ids,
-            excluded_id=excluded_id,
+        create_search_session(
+            session_id,
+            SearchSession(
+                owner_user_id=user_id,
+                index_fingerprint=current_index_fingerprint,
+                query_vector=query_vector.copy(),
+                weights=weights,
+                result_ids=result_ids,
+                excluded_id=excluded_id,
+            ),
         )
         return {
             "session_id": session_id,
@@ -198,10 +205,18 @@ class FeedbackResource(Resource):
         session_id = payload.get("session_id")
         if not isinstance(session_id, str) or not session_id:
             return {"error": "session_id est obligatoire."}, 400
-        session = _get_sessions().get(session_id)
         user_id = current_user_id()
-        if session is None or user_id is None or session.owner_user_id != user_id:
-            return {"error": "La session de recherche n'existe pas ou a expiré."}, 404
+        session = (
+            get_search_session(session_id, user_id)
+            if user_id is not None
+            else None
+        )
+        if session is None:
+            return {"error": "La session de recherche n'existe pas ou ne vous appartient pas."}, 404
+        if session.index_fingerprint != current_app.extensions["cbir_index_fingerprint"]:
+            return {
+                "error": "L'index de recherche a changé depuis cette session. Lancez une nouvelle recherche."
+            }, 409
 
         try:
             top_k = _parse_top_k(payload.get("top_k", DEFAULT_TOP_K))
@@ -243,6 +258,7 @@ class FeedbackResource(Resource):
         session.weights = weights
         session.result_ids = result_ids
         session.iteration += 1
+        update_search_session(session_id, session)
         return {
             "session_id": session_id,
             "iteration": session.iteration,
@@ -287,8 +303,6 @@ def create_app(
     init_db(app)
     app.register_blueprint(auth_api)
     app.register_blueprint(gallery_api)
-    app.extensions["search_sessions"] = {}
-
     configured_index = index_path or Path(
         os.environ.get(
             "CBIR_INDEX_PATH",
@@ -297,6 +311,11 @@ def create_app(
     )
     app.extensions["cbir_index"] = (
         load_index(configured_index) if configured_index.is_file() else None
+    )
+    app.extensions["cbir_index_fingerprint"] = (
+        index_fingerprint(app.extensions["cbir_index"])
+        if app.extensions["cbir_index"] is not None
+        else None
     )
 
     @app.errorhandler(RequestEntityTooLarge)

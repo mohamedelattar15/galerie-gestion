@@ -137,7 +137,7 @@ def test_batch_descriptor_extraction_reports_invalid_images(tmp_path: Path) -> N
     assert "error" in response.json["results"][1]
 
 
-def test_search_and_fre_feedback_round_trip(tmp_path: Path) -> None:
+def test_search_session_persists_across_restarts_and_feedback(tmp_path: Path) -> None:
     dataset = _make_dataset(tmp_path)
     index_path = tmp_path / "features.npz"
     build_index(dataset, index_path)
@@ -156,6 +156,14 @@ def test_search_and_fre_feedback_round_trip(tmp_path: Path) -> None:
     assert len(initial.json["results"]) == 3
 
     result_ids = [result["id"] for result in initial.json["results"]]
+    restarted_app = create_app(index_path=index_path, config=_test_config(tmp_path))
+    client = restarted_app.test_client()
+    login = client.post(
+        "/api/auth/login",
+        json={"username": "student-g13", "password": "valid-password-123"},
+    )
+    assert login.status_code == 200
+
     feedback = client.post(
         "/api/search/feedback",
         json={
@@ -172,6 +180,24 @@ def test_search_and_fre_feedback_round_trip(tmp_path: Path) -> None:
     assert len(feedback.json["weights"]) == FEATURE_DIMENSION
     assert np.isfinite(feedback.json["weights"]).all()
     assert len(feedback.json["results"]) == 3
+
+    next_app = create_app(index_path=index_path, config=_test_config(tmp_path))
+    next_client = next_app.test_client()
+    assert next_client.post(
+        "/api/auth/login",
+        json={"username": "student-g13", "password": "valid-password-123"},
+    ).status_code == 200
+    next_ids = [result["id"] for result in feedback.json["results"]]
+    next_feedback = next_client.post(
+        "/api/search/feedback",
+        json={
+            "session_id": initial.json["session_id"],
+            "relevant_ids": next_ids[:2],
+            "top_k": 3,
+        },
+    )
+    assert next_feedback.status_code == 200
+    assert next_feedback.json["iteration"] == 2
 
 
 def test_feedback_requires_two_relevant_images(tmp_path: Path) -> None:
@@ -198,6 +224,46 @@ def test_feedback_requires_two_relevant_images(tmp_path: Path) -> None:
 
     assert feedback.status_code == 422
     assert "au moins deux" in feedback.json["error"]
+
+
+def test_feedback_rejects_a_session_from_a_different_index(tmp_path: Path) -> None:
+    dataset = _make_dataset(tmp_path)
+    original_index_path = tmp_path / "original.npz"
+    build_index(dataset, original_index_path)
+    config = _test_config(tmp_path)
+    original_app = create_app(index_path=original_index_path, config=config)
+    original_client = _authenticated_client(original_app)
+    initial = original_client.post(
+        "/api/search",
+        data={
+            "query": (BytesIO(_png_bytes((220, 220, 20))), "query.png"),
+            "top_k": "3",
+        },
+        content_type="multipart/form-data",
+    )
+    assert initial.status_code == 200
+
+    (dataset / "objects" / "red.png").write_bytes(_png_bytes((180, 20, 220)))
+    changed_index_path = tmp_path / "changed.npz"
+    build_index(dataset, changed_index_path)
+    changed_app = create_app(index_path=changed_index_path, config=config)
+    changed_client = changed_app.test_client()
+    assert changed_client.post(
+        "/api/auth/login",
+        json={"username": "student-g13", "password": "valid-password-123"},
+    ).status_code == 200
+
+    result_ids = [result["id"] for result in initial.json["results"]]
+    feedback = changed_client.post(
+        "/api/search/feedback",
+        json={
+            "session_id": initial.json["session_id"],
+            "relevant_ids": result_ids[:2],
+        },
+    )
+
+    assert feedback.status_code == 409
+    assert "index de recherche a changé" in feedback.json["error"]
 
 
 def test_authentication_and_gallery_isolation(tmp_path: Path) -> None:
@@ -241,7 +307,11 @@ def test_authentication_and_gallery_isolation(tmp_path: Path) -> None:
     download = first_client.get(original["file_url"])
     assert download.status_code == 200
     assert download.data.startswith(b"\x89PNG")
+    assert "attachment" not in download.headers["Content-Disposition"]
     download.close()
+    attachment = first_client.get(f"{original['file_url']}?download=1")
+    assert "attachment" in attachment.headers["Content-Disposition"]
+    attachment.close()
 
     transformed_response = first_client.post(
         f"/api/images/{original['id']}/transform",

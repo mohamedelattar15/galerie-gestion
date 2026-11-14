@@ -1,6 +1,6 @@
 # Plan et implémentation — Projet CBIR | Groupe G13
 
-> **Avancement :** l'extraction des descripteurs, la normalisation, l'indexation, la recherche CBIR/FRE, l'authentification, la galerie SQLite et les transformations sont implémentées et testées. Une interface web HTML/CSS/JavaScript couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. Il reste à créer l'index complet GHIM-10K, à persister les sessions FRE et à réaliser l'évaluation expérimentale. Le dataset et l'index complet ne sont pas fournis dans le dépôt.
+> **Avancement :** l'extraction des descripteurs, la normalisation, l'indexation, la recherche CBIR/FRE, l'authentification, la galerie SQLite, les transformations et la persistance des sessions de recherche sont implémentées et testées. Une interface web HTML/CSS/JavaScript couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. Il reste à créer l'index complet GHIM-10K et à réaliser l'évaluation expérimentale. Le dataset et l'index complet ne sont pas fournis dans le dépôt.
 
 ## 1. Présentation du projet
 
@@ -381,7 +381,7 @@ galerie-gestion/
 │   ├── image_io.py        # Validation et stockage des images
 │   ├── index.py           # Pré-calcul et chargement de l'index
 │   ├── normalization.py   # Normalisation ajustée sur la base
-│   └── retrieval.py       # Classement et sessions de recherche
+│   ├── retrieval.py       # Classement et sessions de recherche
 │   ├── static/            # Interface CSS et JavaScript
 │   └── templates/         # Page de l'application
 ├── tests/
@@ -394,7 +394,7 @@ galerie-gestion/
 └── README_IMPLEMENTATION.md
 ```
 
-Le dossier `GHIM-10K/` est une donnée locale ignorée par Git et ne doit pas être remis. L'index généré est stocké dans `instance/`, également ignoré. Les comptes, catégories et métadonnées de la galerie sont persistés dans SQLite; les fichiers images sont conservés dans le stockage local. Les sessions FRE sont en mémoire et ne survivent pas au redémarrage.
+Le dossier `GHIM-10K/` est une donnée locale ignorée par Git et ne doit pas être remis. L'index généré est stocké dans `instance/`, également ignoré. Les comptes, catégories, métadonnées de la galerie et sessions de recherche sont persistés dans SQLite; les fichiers images sont conservés dans le stockage local. Les sessions sont associées à une empreinte de l'index et ne peuvent pas être réutilisées si celui-ci change.
 
 ---
 

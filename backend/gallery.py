@@ -346,7 +346,7 @@ def download_image(image_id: int) -> Any:
     return send_file(
         image_path,
         mimetype=str(image["mime_type"]),
-        as_attachment=False,
+        as_attachment=request.args.get("download") == "1",
         download_name=str(image["original_filename"]),
     )
 

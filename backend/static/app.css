@@ -76,7 +76,8 @@ input:focus, select:focus, textarea:focus { outline: 3px solid #a7d9d3; border-c
 .status-message.is-error { color: var(--red); }
 
 .category-list { display: flex; flex-wrap: wrap; gap: 0.45rem; padding: 0; margin: 1rem 0 0; list-style: none; }
-.category-list li { padding: 0.4rem 0.65rem; border-radius: 99px; background: #edf4f5; color: #355769; font-size: 0.85rem; }
+.category-list li { display: flex; align-items: center; gap: 0.45rem; padding: 0.25rem 0.35rem 0.25rem 0.65rem; border-radius: 99px; background: #edf4f5; color: #355769; font-size: 0.85rem; }
+.category-list .button { min-height: 26px; padding: 0.15rem 0.45rem; line-height: 1; }
 .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; margin: 1rem 0; }
 .image-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .image-card img { display: block; width: 100%; height: 190px; object-fit: cover; background: #e8eff1; }

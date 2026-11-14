@@ -83,7 +83,20 @@ async function loadCategories() {
     categoryParent.add(new Option(`${prefix}${category.name}`, category.id));
     uploadCategory.add(new Option(`${prefix}${category.name}`, category.id));
     const item = document.createElement("li");
-    item.textContent = `${prefix}${category.name}`;
+    const name = document.createElement("span");
+    name.textContent = `${prefix}${category.name}`;
+    const deleteButton = makeButton("×", "button button-small");
+    deleteButton.setAttribute("aria-label", `Supprimer la catégorie ${category.name}`);
+    deleteButton.addEventListener("click", async () => {
+      try {
+        await api(`/api/categories/${category.id}`, { method: "DELETE" });
+        await loadCategories();
+        showStatus("Catégorie supprimée.");
+      } catch (error) {
+        showStatus(error.message, true);
+      }
+    });
+    item.append(name, deleteButton);
     list.append(item);
   }
   if (categories.length === 0) {
@@ -132,7 +145,12 @@ function createGalleryCard(image) {
 
   const descriptorsButton = makeButton("Descripteurs", "button button-secondary");
   const deleteButton = makeButton("Supprimer", "button button-quiet");
-  actions.append(descriptorsButton, deleteButton);
+  const downloadLink = document.createElement("a");
+  downloadLink.className = "button button-quiet";
+  downloadLink.href = `${image.file_url}?download=1`;
+  downloadLink.download = image.filename;
+  downloadLink.textContent = "Télécharger";
+  actions.append(descriptorsButton, downloadLink, deleteButton);
   body.append(title, meta, actions);
   const descriptorPanel = document.createElement("div");
   descriptorPanel.className = "descriptor-panel";
