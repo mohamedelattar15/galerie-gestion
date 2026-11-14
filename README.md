@@ -25,7 +25,6 @@ Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une mé
 
 ## Documentation
 
-- [Rapport de projet G13 — version de travail](RAPPORT_G13_CBIR_FRE.docx)
 - [Plan d'architecture et d'implémentation](README_IMPLEMENTATION.md) — architecture proposée, formule FRE, API, étapes de réalisation, cas limites et protocole d'évaluation.
 - [Explication détaillée du projet](explication.md)
 - Article de référence : Renuka Devi SM, [DOI 10.17148/IJARCCE.2016.511118](https://doi.org/10.17148/IJARCCE.2016.511118). La copie PDF de travail n'est pas incluse dans l'archive de livraison.

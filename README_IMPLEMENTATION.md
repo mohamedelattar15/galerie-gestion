@@ -573,8 +573,6 @@ Ces chiffres décrivent uniquement cette simulation oracle fondée sur les caté
 
 ### Rapport scientifique
 
-Une première version de travail est disponible dans [RAPPORT_G13_CBIR_FRE.docx](RAPPORT_G13_CBIR_FRE.docx). Les noms des membres, l’établissement et les résultats des tests avec de vrais utilisateurs doivent être ajoutés avant la remise finale.
-
 Le rapport doit présenter :
 
 - La problématique.
