@@ -1,6 +1,6 @@
 # Plan et implémentation — Projet CBIR | Groupe G13
 
-> **Avancement :** l'extraction des descripteurs, la normalisation, la recherche CBIR/FRE, l'authentification, la galerie SQLite, les transformations et la persistance des sessions de recherche sont implémentées et testées. Une interface web HTML/CSS/JavaScript couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. L'index GHIM-10K complet (10 000 images, 329 dimensions) a été généré localement; l'évaluation expérimentale reste à réaliser. Le dataset et l'index sont exclus du dépôt.
+> **Avancement :** l'extraction des descripteurs, la normalisation, la recherche CBIR/FRE, l'authentification, la galerie SQLite, les transformations et la persistance des sessions de recherche sont implémentées et testées. Une interface web HTML/CSS/JavaScript couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. L'index GHIM-10K complet (10 000 images, 329 dimensions) a été généré localement et une première simulation d'évaluation hors ligne a été exécutée. Des essais plus larges et une validation par des utilisateurs restent à conduire. Le dataset et l'index sont exclus du dépôt.
 
 ## 1. Présentation du projet
 
@@ -552,7 +552,20 @@ Les expériences doivent comparer, sur les mêmes requêtes et avec le même \(N
 
 L'outil `python -m backend.evaluation` exécute ce protocole et émet un rapport JSON avec Precision@N, Recall@N et le nombre de feedbacks appliqués ou ignorés à chaque itération. Il échantillonne les requêtes avec une graine reproductible et exclut la requête de son propre classement. Pour simuler le feedback hors ligne, il sélectionne les exemples positifs de même catégorie parmi les premiers résultats; les étiquettes ne sont jamais fournies au moteur CBIR/FRE en fonctionnement normal. Les cas avec moins de deux positifs disponibles sont comptabilisés et ne déclenchent pas de mise à jour FRE.
 
-Les résultats doivent être mesurés sur GHIM-10K et interprétés après exécution du protocole. Présenter ses paramètres (requêtes, catégories, \(N\), sélection des retours et nombre d'itérations). Aucune performance ne doit être annoncée sans rapport d'expérimentation, et les chiffres de l'article sur son propre dataset ne doivent pas être présentés comme des résultats GHIM-10K.
+Les résultats doivent être mesurés sur GHIM-10K et interprétés après exécution du protocole. Présenter ses paramètres (requêtes, catégories, \(N\), sélection des retours et nombre d'itérations) avec toute performance annoncée. Les chiffres de l'article sur son propre dataset ne doivent pas être présentés comme des résultats GHIM-10K.
+
+### Résultat de la première simulation
+
+Une exécution pilote a utilisé 100 requêtes tirées avec la graine 42, \(N=10\), une fenêtre de feedback de 50 résultats et jusqu'à cinq positifs simulés par itération. Le feedback FRE a pu être appliqué à 90 requêtes; pour 10 requêtes, moins de deux positifs étaient disponibles.
+
+| Classement | Précision@10 moyenne | Rappel@10 moyen |
+|---|---:|---:|
+| CBIR initial | 0,3510 | 0,00703 |
+| Après FRE — itération 1 | 0,5830 | 0,01168 |
+| Après FRE — itération 2 | 0,6010 | 0,01204 |
+| Après FRE — itération 3 | 0,6030 | 0,01208 |
+
+Ces chiffres décrivent uniquement cette simulation oracle fondée sur les catégories GHIM-10K; ils ne mesurent pas le comportement de vrais utilisateurs et ne constituent pas une comparaison directe avec les résultats de l'article.
 
 ---
 

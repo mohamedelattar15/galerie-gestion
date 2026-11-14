@@ -4,7 +4,7 @@ Projet universitaire de gestion d'une galerie d'images et de recherche CBIR (*Co
 
 Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une méthode de retour de pertinence qui utilise les images marquées pertinentes pour ajuster les poids des caractéristiques et améliorer le classement des résultats.
 
-> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Une interface web HTML/CSS/JavaScript permet la connexion, la gestion des images et catégories, les transformations, la visualisation des descripteurs et la recherche avec feedback. L'index GHIM-10K de 10 000 images est généré localement; les sessions de recherche sont conservées dans SQLite. L'évaluation expérimentale reste à réaliser.
+> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Une interface web HTML/CSS/JavaScript permet la connexion, la gestion des images et catégories, les transformations, la visualisation des descripteurs et la recherche avec feedback. L'index GHIM-10K de 10 000 images est généré localement; les sessions de recherche sont conservées dans SQLite. Une première simulation d'évaluation hors ligne est réalisée; des essais plus larges et des retours utilisateurs restent à conduire.
 
 ## Objectifs du projet
 
