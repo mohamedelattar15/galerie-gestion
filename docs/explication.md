@@ -794,7 +794,7 @@ galerie-gestion/
 │   │   └── search.py
 │   ├── utils/
 │   │   └── image_io.py
-│   ├── static/
+│   ├── static/react/    # Bundle compilé par Vite
 │   ├── templates/
 │   └── __init__.py
 ├── frontend/

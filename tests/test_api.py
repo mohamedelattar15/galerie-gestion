@@ -83,7 +83,7 @@ def test_home_page_serves_the_workspace(tmp_path: Path) -> None:
     response = app.test_client().get("/")
 
     assert response.status_code == 200
-    assert b"Galerie d'images" in response.data or "Galerie d’images".encode() in response.data
+    assert b'<div id="root"></div>' in response.data
     assert b"/static/react/app.css" in response.data
     assert b"/static/react/app.js" in response.data
 
