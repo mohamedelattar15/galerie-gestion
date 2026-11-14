@@ -382,6 +382,7 @@ galerie-gestion/
 │   ├── domain/
 │   │   ├── features.py              # Descripteurs couleur, GLCM et LBP
 │   │   ├── fre.py                   # Poids FRE et distance pondérée
+│   │   ├── fre_config.py            # Paramètres FRE (epsilon, seuils, fenêtre)
 │   │   ├── models.py                # Modèles d'index et de session
 │   │   ├── normalization.py         # Normalisation des descripteurs
 │   │   └── retrieval.py             # Classement et empreinte de l'index
@@ -585,22 +586,26 @@ Les expériences doivent comparer, sur les mêmes requêtes et avec le même \(N
 2. La recherche après une première itération FRE.
 3. La recherche après plusieurs itérations FRE.
 
-L'outil `python -m backend.services.evaluation` exécute ce protocole et émet un rapport JSON avec Precision@N, Recall@N et le nombre de feedbacks appliqués ou ignorés à chaque itération. Il échantillonne les requêtes avec une graine reproductible et exclut la requête de son propre classement. Pour simuler le feedback hors ligne, il sélectionne les exemples positifs de même catégorie parmi les premiers résultats; les étiquettes ne sont jamais fournies au moteur CBIR/FRE en fonctionnement normal. Les cas avec moins de deux positifs disponibles sont comptabilisés et ne déclenchent pas de mise à jour FRE.
+L'outil `python -m backend.services.evaluation` exécute ce protocole et émet un rapport JSON avec Precision@N, Recall@N et le nombre de feedbacks appliqués ou ignorés à chaque itération. Il échantillonne les requêtes avec une graine reproductible et exclut la requête de son propre classement. Pour simuler le feedback hors ligne, il sélectionne les exemples positifs de même catégorie parmi les résultats examinés; les étiquettes ne sont jamais fournies au moteur CBIR/FRE en fonctionnement normal. Les cas avec moins de deux positifs disponibles sont comptabilisés et ne déclenchent pas de mise à jour FRE.
+
+Par défaut, `--feedback-pool` vaut `--top-k` : l'utilisateur simulé ne juge que les résultats réellement affichés par l'interface. Une valeur supérieure modélise un oracle et le rapport l'indique avec `feedback_window_matches_interface: false`. Les paramètres `--epsilon` et `--minimum-relevant` proviennent de `backend/domain/fre_config.py`, source unique de vérité pour la formule, l'API et l'évaluation.
 
 Les résultats doivent être mesurés sur GHIM-10K et interprétés après exécution du protocole. Présenter ses paramètres (requêtes, catégories, \(N\), sélection des retours et nombre d'itérations) avec toute performance annoncée. Les chiffres de l'article sur son propre dataset ne doivent pas être présentés comme des résultats GHIM-10K.
 
 ### Résultat de la première évaluation multi-graines
 
-L'évaluation a utilisé cinq tirages reproductibles de 100 requêtes chacun (graines 42 à 46), \(N=10\), une fenêtre de feedback de 50 résultats et jusqu'à cinq positifs simulés par itération. Le feedback FRE a été appliqué à 90–98 requêtes sur 100 selon le tirage; les autres requêtes n'avaient pas deux positifs disponibles. Le tableau indique la moyenne et l'écart-type de population des métriques moyennes des cinq tirages.
+L'évaluation a utilisé cinq tirages reproductibles de 100 requêtes chacun (graines 42 à 46), \(N=10\), une fenêtre de feedback de 10 résultats — identique à ce que l'interface affiche par défaut — et jusqu'à cinq positifs simulés par itération. Le feedback FRE a été appliqué à 83–95 requêtes sur 100 selon le tirage; les autres requêtes n'avaient pas deux positifs parmi les dix résultats visibles. Le tableau indique la moyenne et l'écart-type de population des métriques moyennes des cinq tirages.
 
 | Classement | Précision@10 (moyenne ± écart-type) | Rappel@10 (moyenne ± écart-type) |
 |---|---:|---:|
 | CBIR initial | 0,3336 ± 0,0206 | 0,00669 ± 0,00041 |
-| Après FRE — itération 1 | 0,6036 ± 0,0286 | 0,01210 ± 0,00057 |
-| Après FRE — itération 2 | 0,6208 ± 0,0296 | 0,01244 ± 0,00059 |
-| Après FRE — itération 3 | 0,6208 ± 0,0278 | 0,01244 ± 0,00056 |
+| Après FRE — itération 1 | 0,4610 ± 0,0365 | 0,00924 ± 0,00073 |
+| Après FRE — itération 2 | 0,4842 ± 0,0387 | 0,00970 ± 0,00077 |
+| Après FRE — itération 3 | 0,4844 ± 0,0405 | 0,00971 ± 0,00081 |
 
-Ces chiffres décrivent uniquement cette simulation oracle fondée sur les catégories GHIM-10K; ils ne mesurent pas le comportement de vrais utilisateurs et ne constituent pas une comparaison directe avec les résultats de l'article.
+Une variante avec une fenêtre de 50 résultats examinés, qui simule un oracle, atteint 0,6036 de précision à l'itération 1. Elle surestime ce qu'un utilisateur peut juger dans l'interface et ne doit pas être présentée comme le résultat principal.
+
+Ces chiffres décrivent uniquement cette simulation fondée sur les catégories GHIM-10K; ils ne mesurent pas le comportement de vrais utilisateurs et ne constituent pas une comparaison directe avec les résultats de l'article.
 
 ---
 

@@ -67,6 +67,39 @@ def test_evaluate_fre_skips_queries_without_two_positive_examples(tmp_path: Path
     assert iteration["precision_at_k"] == report["baseline"]["precision_at_k"] == 0.0
 
 
+def test_evaluate_fre_defaults_to_the_interface_feedback_window(tmp_path: Path) -> None:
+    dataset = _make_dataset(
+        tmp_path,
+        {"objects": [(255, 0, 0), (0, 255, 0), (0, 0, 255)]},
+    )
+    index = build_index(dataset, tmp_path / "features.npz")
+
+    report = evaluate_fre(index, query_count=3, top_k=2, feedback_count=2, iterations=1)
+
+    assert report["protocol"]["feedback_pool"] == 2
+    assert report["protocol"]["feedback_window_matches_interface"] is True
+
+
+def test_evaluate_fre_flags_an_oracle_feedback_window(tmp_path: Path) -> None:
+    dataset = _make_dataset(
+        tmp_path,
+        {"objects": [(255, 0, 0), (0, 255, 0), (0, 0, 255)]},
+    )
+    index = build_index(dataset, tmp_path / "features.npz")
+
+    report = evaluate_fre(
+        index,
+        query_count=3,
+        top_k=1,
+        feedback_pool=2,
+        feedback_count=2,
+        iterations=1,
+    )
+
+    assert report["protocol"]["feedback_pool"] == 2
+    assert report["protocol"]["feedback_window_matches_interface"] is False
+
+
 def test_evaluate_multiple_seeds_aggregates_run_metrics(tmp_path: Path) -> None:
     dataset = _make_dataset(
         tmp_path,

@@ -44,6 +44,15 @@ def _image_storage() -> Path:
     return Path(current_app.config["UPLOAD_DIR"])
 
 
+def _remove_stored_file(stored_name: str | None) -> None:
+    if stored_name is None:
+        return
+    try:
+        stored_image_path(_image_storage(), stored_name).unlink(missing_ok=True)
+    except (OSError, ValueError):
+        current_app.logger.warning("Could not remove stored file %s.", stored_name)
+
+
 def _owned_image(image_id: int) -> sqlite3.Row | None:
     user_id = current_user_id()
     return get_owned_image(image_id, user_id) if user_id is not None else None
@@ -199,9 +208,12 @@ def _upload_images() -> tuple[Any, int]:
             results.append(_image_payload(row))
         except ValueError as error:
             failures += 1
-            if stored_name is not None:
-                stored_image_path(_image_storage(), stored_name).unlink(missing_ok=True)
+            _remove_stored_file(stored_name)
             results.append({"filename": upload.filename, "error": str(error)})
+        except Exception:
+            # A database or disk failure must not leave an orphan file behind.
+            _remove_stored_file(stored_name)
+            raise
 
     status_code = 207 if failures and len(uploads) > 1 else 400 if failures else 201
     if len(uploads) == 1 and failures:
@@ -371,8 +383,8 @@ def transform_image(image_id: int) -> tuple[Any, int]:
             width=transformed.width,
             height=transformed.height,
         )
-    except sqlite3.Error:
-        stored_image_path(_image_storage(), stored_name).unlink(missing_ok=True)
+    except Exception:
+        _remove_stored_file(stored_name)
         raise
 
     derived = _owned_image(derived_id)

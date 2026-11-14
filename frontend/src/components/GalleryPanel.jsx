@@ -2,8 +2,17 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
 
-export default function GalleryPanel({ categories, images, onRefresh, showStatus }) {
+export default function GalleryPanel({
+  categories,
+  images,
+  offset,
+  pageSize,
+  onRefresh,
+  showStatus,
+}) {
   const categoryNames = new Map(categories.map((category) => [category.id, category.name]));
+  const hasPreviousPage = offset > 0;
+  const hasNextPage = images.length === pageSize;
 
   return (
     <section className="panel">
@@ -12,14 +21,16 @@ export default function GalleryPanel({ categories, images, onRefresh, showStatus
           <p className="eyebrow">Images personnelles</p>
           <h2>Ma galerie</h2>
         </div>
-        <button className="button button-quiet" onClick={onRefresh} type="button">
+        <button className="button button-quiet" onClick={() => onRefresh(offset)} type="button">
           Actualiser
         </button>
       </div>
       <div className="image-grid">
         {images.length === 0 ? (
           <p className="empty-state gallery-empty">
-            Votre galerie est vide. Importez quelques images pour commencer.
+            {hasPreviousPage
+              ? "Cette page est vide. Revenez à la page précédente."
+              : "Votre galerie est vide. Importez quelques images pour commencer."}
           </p>
         ) : (
           images.map((image) => (
@@ -27,12 +38,35 @@ export default function GalleryPanel({ categories, images, onRefresh, showStatus
               categoryName={categoryNames.get(image.category_id)}
               image={image}
               key={image.id}
-              onRefresh={onRefresh}
+              onRefresh={() => onRefresh(offset)}
               showStatus={showStatus}
             />
           ))
         )}
       </div>
+      {(hasPreviousPage || hasNextPage) && (
+        <nav aria-label="Pagination de la galerie" className="gallery-pagination">
+          <button
+            className="button button-quiet"
+            disabled={!hasPreviousPage}
+            onClick={() => onRefresh(Math.max(0, offset - pageSize))}
+            type="button"
+          >
+            Précédent
+          </button>
+          <span className="hint">
+            Images {offset + 1} à {offset + images.length}
+          </span>
+          <button
+            className="button button-quiet"
+            disabled={!hasNextPage}
+            onClick={() => onRefresh(offset + pageSize)}
+            type="button"
+          >
+            Suivant
+          </button>
+        </nav>
+      )}
     </section>
   );
 }

@@ -776,6 +776,7 @@ galerie-gestion/
 │   ├── domain/
 │   │   ├── features.py
 │   │   ├── fre.py
+│   │   ├── fre_config.py
 │   │   ├── models.py
 │   │   ├── normalization.py
 │   │   └── retrieval.py

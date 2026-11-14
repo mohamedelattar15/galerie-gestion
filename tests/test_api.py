@@ -1,8 +1,10 @@
+import sqlite3
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pytest
 from flask import Flask
 from PIL import Image
 
@@ -345,6 +347,29 @@ def test_authentication_and_gallery_isolation(tmp_path: Path) -> None:
     )
     assert login.status_code == 200
     assert first_client.get("/api/auth/me").status_code == 200
+
+
+def test_upload_removes_the_stored_file_when_the_database_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = create_app(index_path=tmp_path / "missing.npz", config=_test_config(tmp_path))
+    client = _authenticated_client(app)
+    uploads = tmp_path / "uploads"
+
+    def failing_insert(**_kwargs: Any) -> int:
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr("backend.routes.gallery.insert_image", failing_insert)
+
+    with pytest.raises(sqlite3.OperationalError):
+        client.post(
+            "/api/images",
+            data={"image": (BytesIO(_png_bytes((10, 20, 30))), "orphan.png")},
+            content_type="multipart/form-data",
+        )
+
+    assert list(uploads.glob("*")) == []
 
 
 def test_search_session_is_private_to_its_owner(tmp_path: Path) -> None:

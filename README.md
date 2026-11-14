@@ -92,10 +92,10 @@ Exécuter les tests :
 Évaluer CBIR et plusieurs itérations FRE hors ligne :
 
 ```powershell
-.\.venv\Scripts\python.exe -m backend.services.evaluation --queries 100 --top-k 10 --feedback-pool 50 --feedback-count 5 --iterations 3 --seeds 42 43 44 45 46
+.\.venv\Scripts\python.exe -m backend.services.evaluation --queries 100 --top-k 10 --iterations 3 --seeds 42 43 44 45 46
 ```
 
-Le rapport JSON compare Precision@K et Recall@K sur les mêmes requêtes. Les catégories simulent les jugements positifs uniquement pour cette évaluation hors ligne; elles ne sont pas utilisées par la recherche normale.
+Le rapport JSON compare Precision@K et Recall@K sur les mêmes requêtes. Par défaut, le retour simulé porte sur les K résultats affichés par l'interface; `--feedback-pool` permet de simuler un oracle et le rapport l'indique. Les catégories simulent les jugements positifs uniquement pour cette évaluation hors ligne; elles ne sont pas utilisées par la recherche normale.
 
 ## Interface et routes principales
 

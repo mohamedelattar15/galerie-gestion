@@ -7,11 +7,14 @@ import GalleryPanel from "./components/GalleryPanel.jsx";
 import ImageUploader from "./components/ImageUploader.jsx";
 import SearchPanel from "./components/SearchPanel.jsx";
 
+const GALLERY_PAGE_SIZE = 24;
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [categories, setCategories] = useState([]);
   const [images, setImages] = useState([]);
+  const [galleryOffset, setGalleryOffset] = useState(0);
   const [status, setStatus] = useState("");
   const [statusIsError, setStatusIsError] = useState(false);
 
@@ -25,9 +28,10 @@ export default function App() {
     setCategories(result);
   }, []);
 
-  const refreshGallery = useCallback(async () => {
-    const result = await api("/api/images?limit=100");
+  const refreshGallery = useCallback(async (offset = 0) => {
+    const result = await api(`/api/images?limit=${GALLERY_PAGE_SIZE}&offset=${offset}`);
     setImages(result.images);
+    setGalleryOffset(offset);
   }, []);
 
   useEffect(() => {
@@ -103,6 +107,8 @@ export default function App() {
               <GalleryPanel
                 categories={categories}
                 images={images}
+                offset={galleryOffset}
+                pageSize={GALLERY_PAGE_SIZE}
                 onRefresh={refreshGallery}
                 showStatus={showStatus}
               />
