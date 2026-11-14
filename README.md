@@ -25,9 +25,9 @@ Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une mé
 
 ## Documentation
 
-- [Plan d'architecture et d'implémentation](README_IMPLEMENTATION.md) — architecture proposée, formule FRE, API, étapes de réalisation, cas limites et protocole d'évaluation.
-- [Explication détaillée du projet](explication.md)
-- Article de référence : Renuka Devi SM, [DOI 10.17148/IJARCCE.2016.511118](https://doi.org/10.17148/IJARCCE.2016.511118). La copie PDF de travail n'est pas incluse dans l'archive de livraison.
+- [Plan d'architecture et d'implémentation](docs/README_IMPLEMENTATION.md) — architecture proposée, formule FRE, API, étapes de réalisation, cas limites et protocole d'évaluation.
+- [Explication détaillée du projet](docs/explication.md)
+- Article de référence : Renuka Devi SM, [PDF fourni](<docs/references/Reweighing Strategies for Relevance  Feedback in CBIR.pdf>) et [DOI 10.17148/IJARCCE.2016.511118](https://doi.org/10.17148/IJARCCE.2016.511118).
 
 Le plan distingue les exigences du projet des choix techniques proposés. La formule et les choix d'implémentation de FRE doivent être décrits conformément à l'article et à la méthode attribuée à G13.
 

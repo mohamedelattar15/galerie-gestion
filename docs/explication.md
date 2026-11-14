@@ -761,61 +761,42 @@ Il est important de distinguer visuellement les images sélectionnées comme per
 
 ---
 
-## 12. Organisation proposée du projet
+## 12. Organisation actuelle du dépôt
 
 ```text
-CBIR-FRE-Project/
-│
-├── README.md
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   └── assets/
-│   │
-│   └── ...
-│
+galerie-gestion/
 ├── backend/
 │   ├── app.py
-│   ├── config.py
-│   │
-│   ├── routes/
-│   │   ├── image_routes.py
-│   │   ├── feature_routes.py
-│   │   └── search_routes.py
-│   │
-│   ├── services/
-│   │   ├── image_service.py
-│   │   ├── feature_extractor.py
-│   │   ├── similarity.py
-│   │   └── fre.py
-│   │
-│   ├── models/
-│   │   └── ...
-│   │
-│   └── requirements.txt
-│
-├── storage/
-│   ├── uploads/
-│   └── processed/
-│
-├── features/
-│   └── ...
-│
+│   ├── auth.py
+│   ├── database.py
+│   ├── evaluation.py
+│   ├── features.py
+│   ├── fre.py
+│   ├── gallery.py
+│   ├── image_io.py
+│   ├── index.py
+│   ├── normalization.py
+│   ├── retrieval.py
+│   ├── static/
+│   ├── templates/
+│   └── __init__.py
+├── docs/
+│   ├── README_IMPLEMENTATION.md
+│   ├── explication.md
+│   └── references/
+│       └── Reweighing Strategies for Relevance  Feedback in CBIR.pdf
 ├── tests/
+│   ├── test_api.py
+│   ├── test_evaluation.py
 │   ├── test_features.py
-│   ├── test_similarity.py
 │   └── test_fre.py
-│
-└── docs/
-    └── ...
+├── .gitignore
+├── README.md
+├── requirements.txt
+└── requirements-dev.txt
 ```
 
-Cette structure est indicative. Elle peut être adaptée selon les choix techniques du groupe.
-
-Le dossier du dataset GHIM-10K et les dossiers générés volumineux ne doivent pas être inclus dans le livrable final.
+Le dossier `GHIM-10K/` et les dossiers `instance/` présents localement sont ignorés par Git : ils contiennent respectivement le dataset, l'index généré et les données locales de l'application. Ils ne doivent pas être ajoutés au livrable final.
 
 ---
 

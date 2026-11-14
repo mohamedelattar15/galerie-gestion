@@ -384,14 +384,19 @@ galerie-gestion/
 │   ├── retrieval.py       # Classement et sessions de recherche
 │   ├── static/            # Interface CSS et JavaScript
 │   └── templates/         # Page de l'application
+├── docs/
+│   ├── README_IMPLEMENTATION.md
+│   ├── explication.md
+│   └── references/
+│       └── Reweighing Strategies for Relevance  Feedback in CBIR.pdf
 ├── tests/
 │   ├── test_api.py
+│   ├── test_evaluation.py
 │   ├── test_features.py
 │   └── test_fre.py
 ├── requirements.txt
 ├── requirements-dev.txt
-├── README.md
-└── README_IMPLEMENTATION.md
+└── README.md
 ```
 
 Le dossier `GHIM-10K/` est une donnée locale ignorée par Git et ne doit pas être remis. L'index généré est stocké dans `instance/`, également ignoré. Les comptes, catégories, métadonnées de la galerie et sessions de recherche sont persistés dans SQLite; les fichiers images sont conservés dans le stockage local. Les sessions sont associées à une empreinte de l'index et ne peuvent pas être réutilisées si celui-ci change.
