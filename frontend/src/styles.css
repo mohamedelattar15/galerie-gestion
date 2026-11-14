@@ -113,3 +113,37 @@ footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.
   .inline-form > * { width: 100%; }
   footer { flex-direction: column; }
 }
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.workspace-column { min-width: 0; }
+.workspace-column > .panel:first-child { margin-top: 0; }
+.workspace > .search-panel { margin-top: 0; }
+.category-empty { background: transparent !important; color: var(--muted) !important; }
+.descriptor-load { margin-top: 0.7rem; }
+.descriptor-values { grid-template-columns: 1fr; }
+.descriptor-value { display: flex; justify-content: space-between; gap: 1rem; }
+.descriptor-value dd { font-variant-numeric: tabular-nums; }
+.query-preview { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; color: var(--muted); font-size: 0.88rem; }
+.query-preview img { width: 4.5rem; height: 4.5rem; border-radius: 10px; object-fit: cover; background: #e8eff1; }
+.feedback-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 1.2rem 0 0.75rem; color: var(--muted); font-size: 0.86rem; }
+.feedback-summary strong { color: var(--ink); }
+.feedback-summary span { padding: 0.25rem 0.55rem; border-radius: 99px; background: #edf3f5; }
+.feedback-options label { padding: 0.35rem 0.5rem; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+.feedback-options label.is-selected { border-color: var(--blue); background: var(--mint); color: #12594f; font-weight: 700; }
+.search-result-card.is-relevant { border-color: #3b9b7a; box-shadow: 0 0 0 2px #3b9b7a22; }
+.search-result-card.is-non_relevant { border-color: #c66b71; box-shadow: 0 0 0 2px #c66b7122; }
+.feedback-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.feedback-actions .hint { margin: 0; }
+.button:disabled { cursor: not-allowed; opacity: 0.55; transform: none; }
+.gallery-empty { grid-column: 1 / -1; }
+
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: 1fr; }
+  .workspace > .search-panel { margin-top: 1rem; }
+}

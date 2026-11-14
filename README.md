@@ -4,7 +4,7 @@ Projet universitaire de gestion d'une galerie d'images et de recherche CBIR (*Co
 
 Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une méthode de retour de pertinence qui utilise les images marquées pertinentes pour ajuster les poids des caractéristiques et améliorer le classement des résultats.
 
-> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Une interface web HTML/CSS/JavaScript permet la connexion, la gestion des images et catégories, les transformations, la visualisation des descripteurs et la recherche avec feedback. L'index GHIM-10K de 10 000 images est généré localement; les sessions de recherche sont conservées dans SQLite. Une première évaluation hors ligne multi-graines est réalisée; des essais avec de vrais utilisateurs restent à conduire.
+> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Le frontend React + Vite permet la connexion, la gestion des images et catégories, les transformations, la visualisation des descripteurs et la recherche avec feedback. L'index GHIM-10K de 10 000 images est généré localement; les sessions de recherche sont conservées dans SQLite. Une première évaluation hors ligne multi-graines est réalisée; des essais avec de vrais utilisateurs restent à conduire.
 
 ## Objectifs du projet
 
@@ -40,7 +40,7 @@ Les catégories peuvent servir de vérité de référence pour une évaluation h
 ## Technologies
 
 **Exigences du projet :** Python, Flask et Flask-RESTful pour l'API REST.  
-**Choix de prototype proposés :** HTML/CSS/JavaScript, SQLite, système de fichiers et descripteurs pré-calculés. React et PostgreSQL restent des options, pas des exigences.
+**Choix d'implémentation actuels :** React + Vite pour le frontend; SQLite, système de fichiers et descripteurs pré-calculés pour le prototype. React reste un choix technique du groupe, pas une exigence de la méthode CBIR/FRE.
 
 ## Installation, indexation et lancement
 
@@ -51,19 +51,37 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
+Installer et construire le frontend React :
+
+```powershell
+Set-Location frontend
+npm install
+npm run build
+Set-Location ..
+```
+
 Pré-calculer les descripteurs du dataset :
 
 ```powershell
 .\.venv\Scripts\python.exe -m backend.services.indexing --dataset GHIM-10K --output instance\features.npz
 ```
 
-Lancer l'API en mode développement :
+Lancer Flask pour servir le frontend construit :
 
 ```powershell
 .\.venv\Scripts\python.exe -m backend.app
 ```
 
-L'API est alors accessible sur `http://127.0.0.1:5000`. `GET /health` indique si l'index est chargé. Sans index, l'extraction fonctionne, mais les recherches répondent avec une erreur explicite.
+L'application est alors accessible sur `http://127.0.0.1:5000`. `GET /health` indique si l'index est chargé. Sans index, l'extraction fonctionne, mais les recherches répondent avec une erreur explicite.
+
+Pour le développement frontend avec Vite, démarrer Flask dans un terminal, puis dans un second terminal :
+
+```powershell
+Set-Location frontend
+npm run dev
+```
+
+Ouvrir `http://127.0.0.1:5173`; Vite transmet les appels `/api` et `/health` à Flask.
 
 Exécuter les tests :
 
@@ -81,7 +99,7 @@ Le rapport JSON compare Precision@K et Recall@K sur les mêmes requêtes. Les ca
 
 ## Interface et routes principales
 
-Ouvrir `http://127.0.0.1:5000` après le lancement du serveur. L'interface couvre l'inscription et la connexion, les catégories, l'import et la suppression d'images, les transformations, l'affichage des descripteurs et la recherche avec feedback.
+Ouvrir `http://127.0.0.1:5000` après la construction du frontend et le lancement de Flask, ou `http://127.0.0.1:5173` en mode développement Vite. L'interface couvre l'inscription et la connexion, les catégories, l'import et la suppression d'images, les transformations, l'affichage des descripteurs et la recherche avec feedback.
 
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` — authentification.
 - `GET|POST /api/categories` — liste et création des catégories; `DELETE /api/categories/<id>` — suppression d'une catégorie vide.

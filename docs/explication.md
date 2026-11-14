@@ -593,7 +593,7 @@ Ses responsabilités sont :
 - Recherche d'images similaires.
 - Interface de rétroaction de pertinence.
 
-Le choix du framework frontend et du framework backend de l'application web dépend de l'organisation retenue par le groupe.
+Le choix du framework frontend et du framework backend dépend de l'organisation du groupe. Pour l'implémentation actuelle, le groupe a retenu React + Vite; ce choix ne constitue pas une exigence imposée par la méthode CBIR/FRE.
 
 ### 9.2. API Python
 
@@ -797,6 +797,16 @@ galerie-gestion/
 │   ├── static/
 │   ├── templates/
 │   └── __init__.py
+├── frontend/
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+│       ├── App.jsx
+│       ├── api.js
+│       ├── main.jsx
+│       ├── styles.css
+│       └── components/
 ├── docs/
 │   ├── README_IMPLEMENTATION.md
 │   ├── explication.md

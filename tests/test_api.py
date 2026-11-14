@@ -84,8 +84,8 @@ def test_home_page_serves_the_workspace(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert b"Galerie d'images" in response.data or "Galerie d’images".encode() in response.data
-    assert b"/static/app.css" in response.data
-    assert b"/static/app.js" in response.data
+    assert b"/static/react/app.css" in response.data
+    assert b"/static/react/app.js" in response.data
 
 
 def test_gallery_descriptors_and_indexed_image_file(tmp_path: Path) -> None:

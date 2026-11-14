@@ -3,6 +3,10 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+node_modules/
+frontend/node_modules/
+backend/static/react/
+frontend/dist/
 instance/
 storage/
 features/descriptors/

@@ -1,6 +1,6 @@
 # Plan et implémentation — Projet CBIR | Groupe G13
 
-> **Avancement :** l'extraction des descripteurs, la normalisation, la recherche CBIR/FRE, l'authentification, la galerie SQLite, les transformations et la persistance des sessions de recherche sont implémentées et testées. Une interface web HTML/CSS/JavaScript couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. L'index GHIM-10K complet (10 000 images, 329 dimensions) a été généré localement et une première évaluation hors ligne multi-graines a été exécutée. La validation par de vrais utilisateurs reste à conduire. Le dataset et l'index sont exclus du dépôt.
+> **Avancement :** l'extraction des descripteurs, la normalisation, la recherche CBIR/FRE, l'authentification, la galerie SQLite, les transformations et la persistance des sessions de recherche sont implémentées et testées. Le frontend React + Vite couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. L'index GHIM-10K complet (10 000 images, 329 dimensions) a été généré localement et une première évaluation hors ligne multi-graines a été exécutée. La validation par de vrais utilisateurs reste à conduire. Le dataset et l'index sont exclus du dépôt.
 
 ## 1. Présentation du projet
 
@@ -35,8 +35,8 @@ L'application est organisée autour de trois couches principales.
 
 Cette couche représente l'interface avec laquelle l'utilisateur interagit.
 
-**Technologies proposées : HTML, CSS et JavaScript**  
-React.js reste une option si l'équipe souhaite une interface plus riche et maîtrise cette technologie.
+**Technologies de l'implémentation actuelle : React et Vite**  
+L'interface est écrite en JavaScript et communique avec l'API Flask. React + Vite est un choix technique du groupe, pas une exigence de la méthode ou du sujet.
 
 Responsabilités :
 
@@ -106,8 +106,8 @@ Les données à conserver comprennent :
                        |
                        v
               APPLICATION WEB
-            HTML / CSS / JavaScript
-              (React facultatif)
+              React + Vite
+           JavaScript / CSS
                        |
                  HTTP / JSON
                        |
@@ -348,8 +348,8 @@ L'utilisateur juge les nouveaux résultats. À chaque itération, les poids et l
 
 | Technologie | Rôle dans le projet |
 |---|---|
-| HTML, CSS, JavaScript | Interface du prototype |
-| React.js | Choix facultatif pour une interface plus riche |
+| React + Vite | Frontend actuel du prototype |
+| HTML, CSS, JavaScript | Technologies de base utilisées par le frontend |
 | Python | Logique métier et algorithmes |
 | Flask | Serveur backend |
 | Flask-RESTful | API REST |
@@ -361,7 +361,7 @@ L'utilisateur juge les nouveaux résultats. À chaque itération, les poids et l
 | SQLite | Stockage structuré proposé pour le prototype |
 | PostgreSQL | Choix facultatif pour un déploiement ou des besoins de concurrence |
 
-Le prototype ne nécessite pas obligatoirement React ou PostgreSQL. Éviter d'ajouter deux bibliothèques de traitement d'images si une seule suffit aux fonctions retenues.
+React n'est pas une exigence du projet; il a été retenu par le groupe pour structurer l'interface. PostgreSQL reste facultatif. Éviter d'ajouter deux bibliothèques de traitement d'images si une seule suffit aux fonctions retenues.
 
 ---
 
@@ -400,8 +400,18 @@ galerie-gestion/
 │   │   └── search.py                # Orchestration recherche/FRE
 │   ├── utils/
 │   │   └── image_io.py              # Validation et stockage des images
-│   ├── static/            # Interface CSS et JavaScript
+│   ├── static/react/      # Bundle frontend généré par Vite
 │   └── templates/         # Page de l'application
+├── frontend/
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+│       ├── App.jsx
+│       ├── api.js
+│       ├── main.jsx
+│       ├── styles.css
+│       └── components/    # Auth, catégories, galerie, import et recherche
 ├── docs/
 │   ├── README_IMPLEMENTATION.md
 │   ├── explication.md
