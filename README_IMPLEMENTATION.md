@@ -1,6 +1,6 @@
 # Plan et implémentation — Projet CBIR | Groupe G13
 
-> **Avancement :** l'extraction des descripteurs, la normalisation, l'indexation, la recherche CBIR/FRE, l'authentification, la galerie SQLite, les transformations et la persistance des sessions de recherche sont implémentées et testées. Une interface web HTML/CSS/JavaScript couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. Il reste à créer l'index complet GHIM-10K et à réaliser l'évaluation expérimentale. Le dataset et l'index complet ne sont pas fournis dans le dépôt.
+> **Avancement :** l'extraction des descripteurs, la normalisation, la recherche CBIR/FRE, l'authentification, la galerie SQLite, les transformations et la persistance des sessions de recherche sont implémentées et testées. Une interface web HTML/CSS/JavaScript couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. L'index GHIM-10K complet (10 000 images, 329 dimensions) a été généré localement; l'évaluation expérimentale reste à réaliser. Le dataset et l'index sont exclus du dépôt.
 
 ## 1. Présentation du projet
 
@@ -507,7 +507,7 @@ Le développement doit suivre un ordre permettant de valider progressivement cha
 - Ajouter l'interface de rétroaction.
 - Afficher les résultats FRE.
 
-### Phase 7 — Tests et évaluation (tests unitaires implémentés; évaluation à réaliser)
+### Phase 7 — Tests et évaluation (tests et script d'évaluation implémentés)
 
 - Vérifier l'extraction des descripteurs.
 - Tester la recherche classique.
@@ -516,6 +516,7 @@ Le développement doit suivre un ordre permettant de valider progressivement cha
 - Tester plusieurs itérations.
 - Comparer les résultats avant feedback et après chaque itération, avec une valeur de \(N\) fixe.
 - Calculer la précision@N et le rappel sur plusieurs requêtes, puis rapporter les moyennes.
+- Exécuter `python -m backend.evaluation` pour comparer la recherche initiale et plusieurs itérations FRE.
 
 ---
 
@@ -549,7 +550,9 @@ Les expériences doivent comparer, sur les mêmes requêtes et avec le même \(N
 2. La recherche après une première itération FRE.
 3. La recherche après plusieurs itérations FRE.
 
-Les résultats seront mesurés sur GHIM-10K. Présenter les paramètres du protocole (requêtes, catégories, \(N\), sélection des retours et nombre d'itérations). Aucune performance ne doit être annoncée avant les expérimentations, et les chiffres de l'article sur son propre dataset ne doivent pas être présentés comme des résultats GHIM-10K.
+L'outil `python -m backend.evaluation` exécute ce protocole et émet un rapport JSON avec Precision@N, Recall@N et le nombre de feedbacks appliqués ou ignorés à chaque itération. Il échantillonne les requêtes avec une graine reproductible et exclut la requête de son propre classement. Pour simuler le feedback hors ligne, il sélectionne les exemples positifs de même catégorie parmi les premiers résultats; les étiquettes ne sont jamais fournies au moteur CBIR/FRE en fonctionnement normal. Les cas avec moins de deux positifs disponibles sont comptabilisés et ne déclenchent pas de mise à jour FRE.
+
+Les résultats doivent être mesurés sur GHIM-10K et interprétés après exécution du protocole. Présenter ses paramètres (requêtes, catégories, \(N\), sélection des retours et nombre d'itérations). Aucune performance ne doit être annoncée sans rapport d'expérimentation, et les chiffres de l'article sur son propre dataset ne doivent pas être présentés comme des résultats GHIM-10K.
 
 ---
 

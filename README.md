@@ -4,7 +4,7 @@ Projet universitaire de gestion d'une galerie d'images et de recherche CBIR (*Co
 
 Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une méthode de retour de pertinence qui utilise les images marquées pertinentes pour ajuster les poids des caractéristiques et améliorer le classement des résultats.
 
-> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Une interface web HTML/CSS/JavaScript permet la connexion, la gestion des images et catégories, les transformations, la visualisation des descripteurs et la recherche avec feedback. Les sessions de recherche sont conservées dans SQLite. Il reste à générer l'index GHIM-10K et à réaliser l'évaluation expérimentale.
+> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Une interface web HTML/CSS/JavaScript permet la connexion, la gestion des images et catégories, les transformations, la visualisation des descripteurs et la recherche avec feedback. L'index GHIM-10K de 10 000 images est généré localement; les sessions de recherche sont conservées dans SQLite. L'évaluation expérimentale reste à réaliser.
 
 ## Objectifs du projet
 
@@ -33,9 +33,9 @@ Le plan distingue les exigences du projet des choix techniques proposés. La for
 
 ## Dataset
 
-Le projet utilise [GHIM-10K sur Kaggle](https://www.kaggle.com/datasets/mcpython/ghim-10k). La copie présente dans le dépôt comprend 20 catégories de 500 images, soit 10 000 images. Certains noms de dossiers contiennent des espaces, par exemple `dragon fly` et `sea shores`.
+Le projet utilise [GHIM-10K sur Kaggle](https://www.kaggle.com/datasets/mcpython/ghim-10k). La copie locale comprend 20 catégories de 500 images, soit 10 000 images. Certains noms de dossiers contiennent des espaces, par exemple `dragon fly` et `sea shores`.
 
-Les catégories peuvent servir de vérité de référence pour une évaluation hors ligne. Elles ne remplacent pas les jugements de l'utilisateur pendant une recherche réelle. Le dataset ne doit pas être inclus dans le dossier final remis, conformément au sujet.
+Les catégories peuvent servir de vérité de référence pour une évaluation hors ligne. Elles ne remplacent pas les jugements de l'utilisateur pendant une recherche réelle. Le dataset ne doit pas être inclus dans le dossier final remis, conformément au sujet. L'index généré (`instance/features.npz`) est ignoré par Git et doit être reconstruit localement.
 
 ## Technologies
 
@@ -70,6 +70,14 @@ Exécuter les tests :
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
 ```
+
+Évaluer CBIR et plusieurs itérations FRE hors ligne :
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.evaluation --queries 100 --top-k 10 --feedback-pool 50 --feedback-count 5 --iterations 3 --seed 42
+```
+
+Le rapport JSON compare Precision@K et Recall@K sur les mêmes requêtes. Les catégories simulent les jugements positifs uniquement pour cette évaluation hors ligne; elles ne sont pas utilisées par la recherche normale.
 
 ## Interface et routes principales
 
