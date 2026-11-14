@@ -1,0 +1,95 @@
+# Gestion et recherche d'images par le contenu — G13
+
+Projet universitaire de gestion d'une galerie d'images et de recherche CBIR (*Content-Based Image Retrieval*), encadré par **M'hamed AIT KBIR**.
+
+Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une méthode de retour de pertinence qui utilise les images marquées pertinentes pour ajuster les poids des caractéristiques et améliorer le classement des résultats.
+
+> **Avancement :** le noyau backend est commencé : extraction de descripteurs, index pré-calculé, recherche CBIR et boucle de feedback FRE sont disponibles par API. L'authentification, l'interface web, la gestion complète de la galerie, les transformations et la persistance des sessions restent à développer.
+
+## Objectifs du projet
+
+- Gérer une galerie d'images après authentification : import, téléchargement, suppression, catégories et transformations (recadrage, redimensionnement, rotation et retournement).
+- Extraire les descripteurs d'une image ou d'un lot d'images, puis les visualiser.
+- Fournir une API REST avec Python, Flask et Flask-RESTful.
+- Rechercher les images similaires à une image requête.
+- Améliorer les résultats par des itérations de feedback FRE.
+- Évaluer la recherche initiale et les résultats après feedback.
+
+## Descripteurs demandés
+
+| Famille | Descripteurs |
+|---|---|
+| Couleur | Histogrammes, moments de couleur et couleurs dominantes |
+| Texture — GLCM | Contraste, corrélation, énergie et homogénéité |
+| Texture — LBP | Histogramme des motifs binaires locaux |
+
+## Documentation
+
+- [Plan d'architecture et d'implémentation](README_IMPLEMENTATION.md) — architecture proposée, formule FRE, API, étapes de réalisation, cas limites et protocole d'évaluation.
+- [Explication détaillée du projet](explication.md)
+- Article de référence : `Reweighing Strategies for Relevance Feedback in CBIR.pdf`
+
+Le plan distingue les exigences du projet des choix techniques proposés. La formule et les choix d'implémentation de FRE doivent être décrits conformément à l'article et à la méthode attribuée à G13.
+
+## Dataset
+
+Le projet utilise [GHIM-10K sur Kaggle](https://www.kaggle.com/datasets/mcpython/ghim-10k). La copie présente dans le dépôt comprend 20 catégories de 500 images, soit 10 000 images. Certains noms de dossiers contiennent des espaces, par exemple `dragon fly` et `sea shores`.
+
+Les catégories peuvent servir de vérité de référence pour une évaluation hors ligne. Elles ne remplacent pas les jugements de l'utilisateur pendant une recherche réelle. Le dataset ne doit pas être inclus dans le dossier final remis, conformément au sujet.
+
+## Technologies
+
+**Exigences du projet :** Python, Flask et Flask-RESTful pour l'API REST.  
+**Choix de prototype proposés :** HTML/CSS/JavaScript, SQLite, système de fichiers et descripteurs pré-calculés. React et PostgreSQL restent des options, pas des exigences.
+
+## Installation, indexation et lancement
+
+Depuis la racine du dépôt, avec Python 3.12 ou plus récent :
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
+
+Pré-calculer les descripteurs du dataset :
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.index --dataset GHIM-10K --output instance\features.npz
+```
+
+Lancer l'API en mode développement :
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.app
+```
+
+L'API est alors accessible sur `http://127.0.0.1:5000`. `GET /health` indique si l'index est chargé. Sans index, l'extraction fonctionne, mais les recherches répondent avec une erreur explicite.
+
+Exécuter les tests :
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+```
+
+## Routes disponibles
+
+- `POST /api/features/extract` — multipart avec `image` ou plusieurs fichiers `images`.
+- `POST /api/search` — multipart avec `query` et `top_k`, ou avec `query_image_id`.
+- `POST /api/search/feedback` — JSON contenant `session_id`, au moins deux `relevant_ids`, et éventuellement des `non_relevant_ids`.
+
+Les retours négatifs sont reçus mais ne sont pas utilisés par la formule FRE de G13. Les sessions sont actuellement conservées en mémoire et disparaissent au redémarrage du serveur.
+
+## Livrables attendus
+
+- Rapport `.doc`, `.docx` ou `.pdf`.
+- Code source de l'application et de l'API.
+- Fichiers nécessaires à l'installation et à l'exécution.
+- Documentation et tests.
+- Dossier final sans le dataset ni les données générées automatiquement.
+
+## Références
+
+- Renuka Devi SM, « Reweighing Strategies for Relevance Feedback in CBIR », *International Journal of Advanced Research in Computer and Communication Engineering*, vol. 5, no. 11, novembre 2016, DOI : [10.17148/IJARCCE.2016.511118](https://doi.org/10.17148/IJARCCE.2016.511118).
+- [Dataset GHIM-10K — Kaggle](https://www.kaggle.com/datasets/mcpython/ghim-10k)
+- [Documentation Flask](https://flask.palletsprojects.com/)
+- [Documentation Flask-RESTful](https://flask-restful.readthedocs.io/)
