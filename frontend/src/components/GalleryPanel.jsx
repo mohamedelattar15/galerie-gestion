@@ -1,23 +1,28 @@
+import { ChevronLeft, ChevronRight, Download, ImagePlus, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { api } from "../api.js";
+import ConfirmDialog from "./ConfirmDialog.jsx";
 import ImageInspector from "./ImageInspector.jsx";
 
 export default function GalleryPanel({
   categories,
   images,
+  loading,
   offset,
   pageSize,
   onRefresh,
+  onGoImport,
   showStatus,
 }) {
   const [selected, setSelected] = useState(null);
+  const [toDelete, setToDelete] = useState(null);
   const categoryNames = new Map(categories.map((category) => [category.id, category.name]));
   const hasPreviousPage = offset > 0;
   const hasNextPage = images.length === pageSize;
 
   async function removeImage(image) {
-    if (!window.confirm(`Supprimer « ${image.filename} » ?`)) return;
+    setToDelete(null);
     try {
       await api(`/api/images/${image.id}`, { method: "DELETE" });
       setSelected(null);
@@ -29,30 +34,40 @@ export default function GalleryPanel({
   }
 
   return (
-    <section className="panel">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Images personnelles</p>
-          <h2>Ma galerie</h2>
-        </div>
+    <section>
+      <div className="toolbar">
+        <span className="hint">
+          {images.length > 0 ? `Images ${offset + 1} à ${offset + images.length}` : "Aucune image"}
+        </span>
         <button className="button button-quiet" onClick={() => onRefresh(offset)} type="button">
-          Actualiser
+          <RefreshCw className={loading ? "spin" : ""} size={16} /> Actualiser
         </button>
       </div>
 
-      <div className="image-grid">
-        {images.length === 0 ? (
-          <p className="empty-state gallery-empty">
+      {images.length === 0 ? (
+        <div className="empty-state">
+          <span className="empty-icon">
+            <ImagePlus size={26} />
+          </span>
+          <h3>{hasPreviousPage ? "Cette page est vide" : "Votre galerie est vide"}</h3>
+          <p className="hint">
             {hasPreviousPage
-              ? "Cette page est vide. Revenez à la page précédente."
-              : "Votre galerie est vide. Importez quelques images pour commencer."}
+              ? "Revenez à la page précédente."
+              : "Importez quelques images pour commencer."}
           </p>
-        ) : (
-          images.map((image) => (
-            <article className="image-card gallery-card" key={image.id}>
-              <button className="card-open" onClick={() => setSelected(image)} type="button">
+          {!hasPreviousPage && (
+            <button className="button button-primary" onClick={onGoImport} type="button">
+              Importer des images
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="gallery-grid">
+          {images.map((image) => (
+            <article className="tile" key={image.id}>
+              <button className="tile-open" onClick={() => setSelected(image)} type="button">
                 <img alt={image.filename} loading="lazy" src={image.file_url} />
-                <span className="card-caption">
+                <span className="tile-caption">
                   <strong>{image.filename}</strong>
                   <small>
                     {image.width} × {image.height}
@@ -60,47 +75,49 @@ export default function GalleryPanel({
                   </small>
                 </span>
               </button>
-              <div className="card-hover-actions">
+              <div className="tile-actions">
                 <a
-                  className="button button-quiet"
+                  aria-label={`Télécharger ${image.filename}`}
+                  className="icon-btn icon-btn-glass"
                   download={image.filename}
                   href={`${image.file_url}?download=1`}
+                  title="Télécharger"
                 >
-                  Télécharger
+                  <Download size={16} />
                 </a>
                 <button
-                  className="button button-quiet"
-                  onClick={() => removeImage(image)}
+                  aria-label={`Supprimer ${image.filename}`}
+                  className="icon-btn icon-btn-glass"
+                  onClick={() => setToDelete(image)}
+                  title="Supprimer"
                   type="button"
                 >
-                  Supprimer
+                  <Trash2 size={16} />
                 </button>
               </div>
             </article>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {(hasPreviousPage || hasNextPage) && (
-        <nav aria-label="Pagination de la galerie" className="gallery-pagination">
+        <nav aria-label="Pagination de la galerie" className="pagination">
           <button
             className="button button-quiet"
             disabled={!hasPreviousPage}
             onClick={() => onRefresh(Math.max(0, offset - pageSize))}
             type="button"
           >
-            Précédent
+            <ChevronLeft size={16} /> Précédent
           </button>
-          <span className="hint">
-            Images {offset + 1} à {offset + images.length}
-          </span>
+          <span className="hint">Page {Math.floor(offset / pageSize) + 1}</span>
           <button
             className="button button-quiet"
             disabled={!hasNextPage}
             onClick={() => onRefresh(offset + pageSize)}
             type="button"
           >
-            Suivant
+            Suivant <ChevronRight size={16} />
           </button>
         </nav>
       )}
@@ -109,9 +126,20 @@ export default function GalleryPanel({
         <ImageInspector
           categoryName={categoryNames.get(selected.category_id)}
           image={selected}
+          key={selected.id}
           onChanged={() => onRefresh(offset)}
           onClose={() => setSelected(null)}
+          onDelete={() => setToDelete(selected)}
           showStatus={showStatus}
+        />
+      )}
+
+      {toDelete && (
+        <ConfirmDialog
+          message="Cette action est définitive. Les copies transformées ne sont pas affectées."
+          onCancel={() => setToDelete(null)}
+          onConfirm={() => removeImage(toDelete)}
+          title={`Supprimer « ${toDelete.filename} » ?`}
         />
       )}
     </section>

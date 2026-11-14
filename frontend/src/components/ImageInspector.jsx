@@ -10,7 +10,14 @@ const HISTOGRAM_BLOCKS = [
 
 const GLCM_LABELS = ["Contraste", "Corrélation", "Énergie", "Homogénéité"];
 
-export default function ImageInspector({ image, categoryName, onClose, onChanged, showStatus }) {
+export default function ImageInspector({
+  image,
+  categoryName,
+  onClose,
+  onChanged,
+  onDelete,
+  showStatus,
+}) {
   const [tab, setTab] = useState("descriptors");
   const [descriptor, setDescriptor] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -55,9 +62,16 @@ export default function ImageInspector({ image, categoryName, onClose, onChanged
               {categoryName ? ` · ${categoryName}` : ""}
             </p>
           </div>
-          <button aria-label="Fermer" className="inspector-close" onClick={onClose} type="button">
-            ×
-          </button>
+          <div className="inspector-header-actions">
+            {onDelete && (
+              <button className="button button-quiet" onClick={onDelete} type="button">
+                Supprimer
+              </button>
+            )}
+            <button aria-label="Fermer" className="inspector-close" onClick={onClose} type="button">
+              ×
+            </button>
+          </div>
         </header>
 
         <img alt={image.filename} className="inspector-preview" src={image.file_url} />

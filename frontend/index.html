@@ -3,8 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#163d4b" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#111111" />
     <title>Galerie CBIR — G13</title>
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem("g13-theme");
+          if (!theme) {
+            theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.dataset.theme = theme;
+        } catch (error) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
