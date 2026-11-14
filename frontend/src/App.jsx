@@ -2,10 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api } from "./api.js";
 import AuthPanel from "./components/AuthPanel.jsx";
-import CategoryPanel from "./components/CategoryPanel.jsx";
-import GalleryPanel from "./components/GalleryPanel.jsx";
-import ImageUploader from "./components/ImageUploader.jsx";
-import SearchPanel from "./components/SearchPanel.jsx";
+import Workspace from "./components/Workspace.jsx";
 
 const GALLERY_PAGE_SIZE = 24;
 
@@ -65,14 +62,16 @@ export default function App() {
   return (
     <>
       <header className="site-header">
-        <div>
-          <p className="eyebrow">Projet CBIR · Groupe G13</p>
-          <h1>Galerie d’images</h1>
-          <p className="subtitle">Explorez vos images et améliorez la recherche avec FRE.</p>
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true">G13</span>
+          <div>
+            <h1>Galerie d’images</h1>
+            <p className="subtitle">Recherche par le contenu · Feature Relevance Estimation</p>
+          </div>
         </div>
         {user && (
           <div className="account-bar">
-            <span>{user.username}</span>
+            <span className="account-name">{user.username}</span>
             <button className="button button-quiet" onClick={handleLogout} type="button">
               Déconnexion
             </button>
@@ -80,7 +79,7 @@ export default function App() {
         )}
       </header>
 
-      <main>
+      <main className="app-main">
         <p
           className={`status-message${statusIsError ? " is-error" : ""}`}
           role="status"
@@ -92,29 +91,15 @@ export default function App() {
         {checkingSession ? (
           <p className="empty-state">Chargement de votre espace…</p>
         ) : user ? (
-          <div className="workspace">
-            <div className="workspace-column">
-              <CategoryPanel
-                categories={categories}
-                onCategoriesChanged={refreshCategories}
-                showStatus={showStatus}
-              />
-              <ImageUploader
-                categories={categories}
-                onUploaded={refreshGallery}
-                showStatus={showStatus}
-              />
-              <GalleryPanel
-                categories={categories}
-                images={images}
-                offset={galleryOffset}
-                pageSize={GALLERY_PAGE_SIZE}
-                onRefresh={refreshGallery}
-                showStatus={showStatus}
-              />
-            </div>
-            <SearchPanel showStatus={showStatus} />
-          </div>
+          <Workspace
+            categories={categories}
+            images={images}
+            offset={galleryOffset}
+            pageSize={GALLERY_PAGE_SIZE}
+            onCategoriesChanged={refreshCategories}
+            onGalleryChanged={refreshGallery}
+            showStatus={showStatus}
+          />
         ) : (
           <AuthPanel onAuthenticated={setUser} showStatus={showStatus} />
         )}
@@ -123,7 +108,6 @@ export default function App() {
       <footer>
         <span>CBIR · Feature Relevance Estimation · G13</span>
         <span>Les sessions de recherche expirent au redémarrage du serveur.</span>
-      </footer>
-    </>
+      </footer>    </>
   );
 }
