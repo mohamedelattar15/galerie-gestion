@@ -372,16 +372,34 @@ Structure actuelle du code :
 ```text
 galerie-gestion/
 ├── backend/
-│   ├── app.py             # API Flask-RESTful et routes de recherche
-│   ├── auth.py            # Inscription, connexion et sessions utilisateur
-│   ├── database.py        # Schéma et accès SQLite
-│   ├── features.py        # Extraction couleur, GLCM et LBP
-│   ├── fre.py             # Poids FRE et distance pondérée
-│   ├── gallery.py         # Catégories, galerie et transformations
-│   ├── image_io.py        # Validation et stockage des images
-│   ├── index.py           # Pré-calcul et chargement de l'index
-│   ├── normalization.py   # Normalisation ajustée sur la base
-│   ├── retrieval.py       # Classement et sessions de recherche
+│   ├── app.py                       # Fabrique et configuration Flask
+│   ├── database/
+│   │   ├── connection.py            # Connexion SQLite et schéma
+│   │   └── repositories/
+│   │       ├── gallery.py            # Persistance des images et catégories
+│   │       ├── search_sessions.py    # Persistance des sessions de recherche
+│   │       └── users.py              # Persistance des comptes
+│   ├── domain/
+│   │   ├── features.py              # Descripteurs couleur, GLCM et LBP
+│   │   ├── fre.py                   # Poids FRE et distance pondérée
+│   │   ├── models.py                # Modèles d'index et de session
+│   │   ├── normalization.py         # Normalisation des descripteurs
+│   │   └── retrieval.py             # Classement et empreinte de l'index
+│   ├── routes/
+│   │   ├── auth.py                  # Authentification
+│   │   ├── features.py              # Extraction de descripteurs
+│   │   ├── gallery.py               # Galerie et catégories
+│   │   ├── health.py                # Vérification de disponibilité
+│   │   └── search.py                # Recherche et feedback
+│   ├── services/
+│   │   ├── evaluation.py            # Évaluation hors ligne
+│   │   ├── auth.py                  # Cas d'usage d'authentification
+│   │   ├── features.py              # Extraction via les uploads HTTP
+│   │   ├── gallery.py               # Transformations des images
+│   │   ├── indexing.py              # Pré-calcul et chargement de l'index
+│   │   └── search.py                # Orchestration recherche/FRE
+│   ├── utils/
+│   │   └── image_io.py              # Validation et stockage des images
 │   ├── static/            # Interface CSS et JavaScript
 │   └── templates/         # Page de l'application
 ├── docs/
@@ -398,6 +416,8 @@ galerie-gestion/
 ├── requirements-dev.txt
 └── README.md
 ```
+
+Les routes gèrent le protocole HTTP, les services orchestrent les cas d'usage, les repositories centralisent le SQL et le domaine contient les modèles et calculs CBIR/FRE. Les dépendances vont des routes vers les services, puis vers le domaine ou la persistance; le domaine ne dépend ni de Flask ni de SQLite.
 
 Le dossier `GHIM-10K/` est une donnée locale ignorée par Git et ne doit pas être remis. L'index généré est stocké dans `instance/`, également ignoré. Les comptes, catégories, métadonnées de la galerie et sessions de recherche sont persistés dans SQLite; les fichiers images sont conservés dans le stockage local. Les sessions sont associées à une empreinte de l'index et ne peuvent pas être réutilisées si celui-ci change.
 
@@ -521,7 +541,7 @@ Le développement doit suivre un ordre permettant de valider progressivement cha
 - Tester plusieurs itérations.
 - Comparer les résultats avant feedback et après chaque itération, avec une valeur de \(N\) fixe.
 - Calculer la précision@N et le rappel sur plusieurs requêtes, puis rapporter les moyennes.
-- Exécuter `python -m backend.evaluation` pour comparer la recherche initiale et plusieurs itérations FRE.
+- Exécuter `python -m backend.services.evaluation` pour comparer la recherche initiale et plusieurs itérations FRE.
 
 ---
 
@@ -555,7 +575,7 @@ Les expériences doivent comparer, sur les mêmes requêtes et avec le même \(N
 2. La recherche après une première itération FRE.
 3. La recherche après plusieurs itérations FRE.
 
-L'outil `python -m backend.evaluation` exécute ce protocole et émet un rapport JSON avec Precision@N, Recall@N et le nombre de feedbacks appliqués ou ignorés à chaque itération. Il échantillonne les requêtes avec une graine reproductible et exclut la requête de son propre classement. Pour simuler le feedback hors ligne, il sélectionne les exemples positifs de même catégorie parmi les premiers résultats; les étiquettes ne sont jamais fournies au moteur CBIR/FRE en fonctionnement normal. Les cas avec moins de deux positifs disponibles sont comptabilisés et ne déclenchent pas de mise à jour FRE.
+L'outil `python -m backend.services.evaluation` exécute ce protocole et émet un rapport JSON avec Precision@N, Recall@N et le nombre de feedbacks appliqués ou ignorés à chaque itération. Il échantillonne les requêtes avec une graine reproductible et exclut la requête de son propre classement. Pour simuler le feedback hors ligne, il sélectionne les exemples positifs de même catégorie parmi les premiers résultats; les étiquettes ne sont jamais fournies au moteur CBIR/FRE en fonctionnement normal. Les cas avec moins de deux positifs disponibles sont comptabilisés et ne déclenchent pas de mise à jour FRE.
 
 Les résultats doivent être mesurés sur GHIM-10K et interprétés après exécution du protocole. Présenter ses paramètres (requêtes, catégories, \(N\), sélection des retours et nombre d'itérations) avec toute performance annoncée. Les chiffres de l'article sur son propre dataset ne doivent pas être présentés comme des résultats GHIM-10K.
 

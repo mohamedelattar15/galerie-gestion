@@ -3,25 +3,17 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
 from PIL import Image
 
-from backend.features import FEATURE_DIMENSION, extract_features
-from backend.normalization import FeatureNormalizer
+from backend.domain.features import FEATURE_DIMENSION, extract_features
+from backend.domain.models import DatasetIndex
+from backend.domain.normalization import FeatureNormalizer
 
 SUPPORTED_EXTENSIONS = {".bmp", ".jpeg", ".jpg", ".png", ".webp"}
-
-
-@dataclass(frozen=True)
-class DatasetIndex:
-    paths: tuple[str, ...]
-    labels: tuple[str, ...]
-    vectors: NDArray[np.float32]
-    normalizer: FeatureNormalizer
 
 
 def _image_files(dataset_dir: Path) -> list[Path]:
@@ -105,7 +97,7 @@ def load_index(index_path: Path) -> DatasetIndex:
 
 
 def main() -> None:
-    project_root = Path(__file__).resolve().parent.parent
+    project_root = Path(__file__).resolve().parent.parent.parent
     parser = argparse.ArgumentParser(description="Pré-calculer les descripteurs du dataset.")
     parser.add_argument(
         "--dataset",

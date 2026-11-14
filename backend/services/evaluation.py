@@ -10,9 +10,10 @@ from typing import Any
 
 import numpy as np
 
-from backend.fre import compute_fre_weights
-from backend.index import DatasetIndex, load_index
-from backend.retrieval import rank_index
+from backend.domain.fre import compute_fre_weights
+from backend.domain.models import DatasetIndex
+from backend.domain.retrieval import rank_index
+from backend.services.indexing import load_index
 
 
 def _precision_recall(
@@ -191,7 +192,7 @@ def evaluate_multiple_seeds(
 
 
 def main() -> None:
-    project_root = Path(__file__).resolve().parent.parent
+    project_root = Path(__file__).resolve().parent.parent.parent
     parser = argparse.ArgumentParser(
         description="Comparer CBIR et FRE hors ligne sur les catégories de GHIM-10K."
     )

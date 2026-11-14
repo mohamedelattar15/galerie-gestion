@@ -2,8 +2,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from backend.evaluation import evaluate_fre, evaluate_multiple_seeds
-from backend.index import build_index
+from backend.services.evaluation import evaluate_fre, evaluate_multiple_seeds
+from backend.services.indexing import build_index
 
 
 def _make_dataset(root: Path, categories: dict[str, list[tuple[int, int, int]]]) -> Path:

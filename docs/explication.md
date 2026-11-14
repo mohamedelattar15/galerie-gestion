@@ -767,16 +767,33 @@ Il est important de distinguer visuellement les images sélectionnées comme per
 galerie-gestion/
 ├── backend/
 │   ├── app.py
-│   ├── auth.py
-│   ├── database.py
-│   ├── evaluation.py
-│   ├── features.py
-│   ├── fre.py
-│   ├── gallery.py
-│   ├── image_io.py
-│   ├── index.py
-│   ├── normalization.py
-│   ├── retrieval.py
+│   ├── database/
+│   │   ├── connection.py
+│   │   └── repositories/
+│   │       ├── gallery.py
+│   │       ├── search_sessions.py
+│   │       └── users.py
+│   ├── domain/
+│   │   ├── features.py
+│   │   ├── fre.py
+│   │   ├── models.py
+│   │   ├── normalization.py
+│   │   └── retrieval.py
+│   ├── routes/
+│   │   ├── auth.py
+│   │   ├── features.py
+│   │   ├── gallery.py
+│   │   ├── health.py
+│   │   └── search.py
+│   ├── services/
+│   │   ├── evaluation.py
+│   │   ├── auth.py
+│   │   ├── features.py
+│   │   ├── gallery.py
+│   │   ├── indexing.py
+│   │   └── search.py
+│   ├── utils/
+│   │   └── image_io.py
 │   ├── static/
 │   ├── templates/
 │   └── __init__.py
@@ -795,6 +812,8 @@ galerie-gestion/
 ├── requirements.txt
 └── requirements-dev.txt
 ```
+
+Les routes prennent en charge HTTP, les services orchestrent les cas d'usage, les repositories isolent les requêtes SQLite et le domaine regroupe les modèles et calculs CBIR/FRE.
 
 Le dossier `GHIM-10K/` et les dossiers `instance/` présents localement sont ignorés par Git : ils contiennent respectivement le dataset, l'index généré et les données locales de l'application. Ils ne doivent pas être ajoutés au livrable final.
 

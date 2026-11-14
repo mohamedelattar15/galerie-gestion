@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from backend.features import FEATURE_DIMENSION, STANDARDIZED_SLICE
+from backend.domain.features import FEATURE_DIMENSION, STANDARDIZED_SLICE
 
 FloatArray = NDArray[np.float32]
 

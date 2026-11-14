@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from backend.fre import compute_fre_weights, weighted_squared_euclidean
+from backend.domain.fre import compute_fre_weights, weighted_squared_euclidean
 
 
 def test_fre_weights_follow_inverse_relevant_standard_deviation() -> None:

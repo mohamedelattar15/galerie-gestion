@@ -1,12 +1,12 @@
 from PIL import Image
 
-from backend.features import (
+from backend.domain.features import (
     COLOR_HISTOGRAM_SLICE,
     FEATURE_DIMENSION,
     LBP_SLICE,
     extract_features,
 )
-from backend.normalization import FeatureNormalizer
+from backend.domain.normalization import FeatureNormalizer
 
 
 def test_extract_features_returns_fixed_size_normalized_histograms() -> None:

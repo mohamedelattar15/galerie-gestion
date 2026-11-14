@@ -10,11 +10,25 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 from PIL import Image, UnidentifiedImageError
 from werkzeug.utils import secure_filename
 
-from backend.auth import current_user_id, login_required
-from backend.database import get_db
-from backend.features import extract_features
-from backend.index import DatasetIndex
-from backend.image_io import (
+from backend.database.repositories.gallery import (
+    category_has_contents,
+    category_is_owned,
+    category_name_exists,
+    delete_category as delete_category_record,
+    delete_image_record,
+    get_owned_category,
+    get_owned_image,
+    image_has_derived_images,
+    insert_category,
+    insert_image,
+    list_categories as fetch_categories,
+    list_images as fetch_images,
+)
+from backend.domain.features import extract_features
+from backend.domain.models import DatasetIndex
+from backend.routes.auth import current_user_id, login_required
+from backend.services.gallery import apply_transformation
+from backend.utils.image_io import (
     MAX_IMAGE_PIXELS,
     FORMAT_MIME_TYPES,
     store_derived_image,
@@ -24,7 +38,6 @@ from backend.image_io import (
 
 gallery_api = Blueprint("gallery_api", __name__, url_prefix="/api")
 MAX_GALLERY_BATCH = 32
-MAX_IMAGE_DIMENSION = 4096
 
 
 def _image_storage() -> Path:
@@ -32,10 +45,8 @@ def _image_storage() -> Path:
 
 
 def _owned_image(image_id: int) -> sqlite3.Row | None:
-    return get_db().execute(
-        "SELECT * FROM images WHERE id = ? AND user_id = ?",
-        (image_id, current_user_id()),
-    ).fetchone()
+    user_id = current_user_id()
+    return get_owned_image(image_id, user_id) if user_id is not None else None
 
 
 def _image_payload(row: sqlite3.Row) -> dict[str, Any]:
@@ -67,67 +78,13 @@ def _parse_category_id(value: Any) -> int | None:
     raise ValueError("category_id doit être un nombre entier.")
 
 
-def _category_is_owned(category_id: int, user_id: int) -> bool:
-    return (
-        get_db()
-        .execute(
-            "SELECT 1 FROM categories WHERE id = ? AND user_id = ?",
-            (category_id, user_id),
-        )
-        .fetchone()
-        is not None
-    )
-
-
-def _insert_image(
-    *,
-    user_id: int,
-    category_id: int | None,
-    parent_image_id: int | None,
-    stored_name: str,
-    original_filename: str,
-    mime_type: str,
-    width: int,
-    height: int,
-) -> int:
-    database = get_db()
-    cursor = database.execute(
-        """
-        INSERT INTO images (
-            user_id, category_id, parent_image_id, stored_name,
-            original_filename, mime_type, width, height
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            user_id,
-            category_id,
-            parent_image_id,
-            stored_name,
-            original_filename,
-            mime_type,
-            width,
-            height,
-        ),
-    )
-    database.commit()
-    image_id = cursor.lastrowid
-    if image_id is None:
-        raise RuntimeError("La base n'a pas retourné l'identifiant de l'image créée.")
-    return int(image_id)
-
-
 @gallery_api.get("/categories")
 @login_required
 def list_categories() -> tuple[Any, int]:
-    rows = get_db().execute(
-        """
-        SELECT id, name, parent_id, created_at
-        FROM categories
-        WHERE user_id = ?
-        ORDER BY COALESCE(parent_id, 0), name COLLATE NOCASE
-        """,
-        (current_user_id(),),
-    ).fetchall()
+    user_id = current_user_id()
+    if user_id is None:
+        return jsonify({"error": "Authentification requise."}), 401
+    rows = fetch_categories(user_id)
     return jsonify(
         [
             {
@@ -158,38 +115,17 @@ def create_category() -> tuple[Any, int]:
     user_id = current_user_id()
     if user_id is None:
         return jsonify({"error": "Authentification requise."}), 401
-    if parent_id is not None and not _category_is_owned(parent_id, user_id):
+    if parent_id is not None and not category_is_owned(parent_id, user_id):
         return jsonify({"error": "La catégorie parente n'existe pas."}), 404
 
-    database = get_db()
     normalized_name = name.strip()
-    if parent_id is None:
-        duplicate = database.execute(
-            """
-            SELECT 1 FROM categories
-            WHERE user_id = ? AND parent_id IS NULL AND name = ? COLLATE NOCASE
-            """,
-            (user_id, normalized_name),
-        ).fetchone()
-    else:
-        duplicate = database.execute(
-            """
-            SELECT 1 FROM categories
-            WHERE user_id = ? AND parent_id = ? AND name = ? COLLATE NOCASE
-            """,
-            (user_id, parent_id, normalized_name),
-        ).fetchone()
-    if duplicate is not None:
+    if category_name_exists(user_id, parent_id, normalized_name):
         return jsonify({"error": "Une catégorie de même nom existe déjà à ce niveau."}), 409
 
-    cursor = database.execute(
-        "INSERT INTO categories (user_id, parent_id, name) VALUES (?, ?, ?)",
-        (user_id, parent_id, normalized_name),
-    )
-    database.commit()
+    category_id = insert_category(user_id, parent_id, normalized_name)
     return jsonify(
         {
-            "id": int(cursor.lastrowid),
+            "id": category_id,
             "name": normalized_name,
             "parent_id": parent_id,
         }
@@ -200,28 +136,14 @@ def create_category() -> tuple[Any, int]:
 @login_required
 def delete_category(category_id: int) -> tuple[Any, int]:
     user_id = current_user_id()
-    database = get_db()
-    category = database.execute(
-        "SELECT id FROM categories WHERE id = ? AND user_id = ?",
-        (category_id, user_id),
-    ).fetchone()
+    if user_id is None:
+        return jsonify({"error": "Authentification requise."}), 401
+    category = get_owned_category(category_id, user_id)
     if category is None:
         return jsonify({"error": "La catégorie n'existe pas."}), 404
-    has_children = database.execute(
-        "SELECT 1 FROM categories WHERE parent_id = ? AND user_id = ? LIMIT 1",
-        (category_id, user_id),
-    ).fetchone()
-    has_images = database.execute(
-        "SELECT 1 FROM images WHERE category_id = ? AND user_id = ? LIMIT 1",
-        (category_id, user_id),
-    ).fetchone()
-    if has_children is not None or has_images is not None:
+    if category_has_contents(category_id, user_id):
         return jsonify({"error": "La catégorie doit être vide avant sa suppression."}), 409
-    database.execute(
-        "DELETE FROM categories WHERE id = ? AND user_id = ?",
-        (category_id, user_id),
-    )
-    database.commit()
+    delete_category_record(category_id, user_id)
     return jsonify({"message": "Catégorie supprimée."}), 200
 
 
@@ -251,7 +173,7 @@ def _upload_images() -> tuple[Any, int]:
     user_id = current_user_id()
     if user_id is None:
         return jsonify({"error": "Authentification requise."}), 401
-    if category_id is not None and not _category_is_owned(category_id, user_id):
+    if category_id is not None and not category_is_owned(category_id, user_id):
         return jsonify({"error": "La catégorie n'existe pas."}), 404
 
     results: list[dict[str, Any]] = []
@@ -261,7 +183,7 @@ def _upload_images() -> tuple[Any, int]:
         try:
             image, image_format, stored_name = store_uploaded_image(upload, _image_storage())
             safe_original_name = secure_filename(upload.filename or "") or "image"
-            image_id = _insert_image(
+            image_id = insert_image(
                 user_id=user_id,
                 category_id=category_id,
                 parent_image_id=None,
@@ -300,25 +222,9 @@ def _list_images() -> tuple[Any, int]:
     user_id = current_user_id()
     if user_id is None:
         return jsonify({"error": "Authentification requise."}), 401
-    database = get_db()
-    if category_id is not None and not _category_is_owned(category_id, user_id):
+    if category_id is not None and not category_is_owned(category_id, user_id):
         return jsonify({"error": "La catégorie n'existe pas."}), 404
-    if category_id is None:
-        rows = database.execute(
-            """
-            SELECT * FROM images WHERE user_id = ?
-            ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?
-            """,
-            (user_id, limit, offset),
-        ).fetchall()
-    else:
-        rows = database.execute(
-            """
-            SELECT * FROM images WHERE user_id = ? AND category_id = ?
-            ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?
-            """,
-            (user_id, category_id, limit, offset),
-        ).fetchall()
+    rows = fetch_images(user_id, category_id, limit, offset)
     return jsonify({"images": [_image_payload(row) for row in rows]}), 200
 
 
@@ -402,12 +308,9 @@ def delete_image(image_id: int) -> tuple[Any, int]:
     if image is None:
         return jsonify({"error": "L'image n'existe pas."}), 404
     user_id = current_user_id()
-    database = get_db()
-    has_derived_images = database.execute(
-        "SELECT 1 FROM images WHERE parent_image_id = ? AND user_id = ? LIMIT 1",
-        (image_id, user_id),
-    ).fetchone()
-    if has_derived_images is not None:
+    if user_id is None:
+        return jsonify({"error": "Authentification requise."}), 401
+    if image_has_derived_images(image_id, user_id):
         return jsonify({"error": "Supprimez d'abord les images dérivées de cette image."}), 409
 
     image_path = stored_image_path(_image_storage(), str(image["stored_name"]))
@@ -416,11 +319,7 @@ def delete_image(image_id: int) -> tuple[Any, int]:
     tombstone_path = image_path.with_name(f".{image_path.name}.deleting")
     image_path.replace(tombstone_path)
     try:
-        database.execute(
-            "DELETE FROM images WHERE id = ? AND user_id = ?",
-            (image_id, user_id),
-        )
-        database.commit()
+        delete_image_record(image_id, user_id)
     except sqlite3.Error:
         tombstone_path.replace(image_path)
         raise
@@ -448,7 +347,7 @@ def transform_image(image_id: int) -> tuple[Any, int]:
                 return jsonify({"error": "L'image dépasse la taille maximale autorisée."}), 413
             opened_image.load()
             image = opened_image.copy()
-        transformed = _apply_transformation(image, operation, payload)
+        transformed = apply_transformation(image, operation, payload)
     except (UnidentifiedImageError, Image.DecompressionBombError, OSError):
         current_app.logger.exception("Stored image could not be decoded.")
         return jsonify({"error": "Le fichier image stocké est illisible."}), 500
@@ -460,7 +359,7 @@ def transform_image(image_id: int) -> tuple[Any, int]:
     operation_name = str(operation)
     original_filename = secure_filename(f"{stem}_{operation_name}.png") or "image_derived.png"
     try:
-        derived_id = _insert_image(
+        derived_id = insert_image(
             user_id=int(source["user_id"]),
             category_id=(
                 int(source["category_id"]) if source["category_id"] is not None else None
@@ -480,49 +379,3 @@ def transform_image(image_id: int) -> tuple[Any, int]:
     if derived is None:
         raise RuntimeError("L'image dérivée créée ne peut pas être relue.")
     return jsonify(_image_payload(derived)), 201
-
-
-def _apply_transformation(
-    image: Image.Image,
-    operation: Any,
-    payload: dict[str, Any],
-) -> Image.Image:
-    if operation == "crop":
-        box = payload.get("box")
-        if (
-            not isinstance(box, list)
-            or len(box) != 4
-            or any(type(value) is not int for value in box)
-        ):
-            raise ValueError("box doit contenir quatre coordonnées entières.")
-        left, upper, right, lower = box
-        if not (0 <= left < right <= image.width and 0 <= upper < lower <= image.height):
-            raise ValueError("Les coordonnées de crop doivent être dans les limites de l'image.")
-        result = image.crop((left, upper, right, lower))
-    elif operation == "resize":
-        width = payload.get("width")
-        height = payload.get("height")
-        if type(width) is not int or type(height) is not int:
-            raise ValueError("width et height doivent être des entiers.")
-        if not (1 <= width <= MAX_IMAGE_DIMENSION and 1 <= height <= MAX_IMAGE_DIMENSION):
-            raise ValueError(f"Les dimensions doivent être comprises entre 1 et {MAX_IMAGE_DIMENSION}.")
-        result = image.resize((width, height), Image.Resampling.LANCZOS)
-    elif operation == "rotate":
-        degrees = payload.get("degrees")
-        if type(degrees) is not int or degrees not in {90, 180, 270}:
-            raise ValueError("degrees doit être 90, 180 ou 270 (rotation antihoraire).")
-        result = image.rotate(degrees, expand=True)
-    elif operation == "flip":
-        direction = payload.get("direction")
-        if direction == "horizontal":
-            result = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-        elif direction == "vertical":
-            result = image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-        else:
-            raise ValueError("direction doit être 'horizontal' ou 'vertical'.")
-    else:
-        raise ValueError("operation doit être crop, resize, rotate ou flip.")
-
-    if result.width * result.height > MAX_IMAGE_PIXELS:
-        raise ValueError("La transformation produirait une image trop grande.")
-    return result

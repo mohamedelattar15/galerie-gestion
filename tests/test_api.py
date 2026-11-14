@@ -7,8 +7,8 @@ from flask import Flask
 from PIL import Image
 
 from backend.app import create_app
-from backend.features import FEATURE_DIMENSION
-from backend.index import build_index
+from backend.domain.features import FEATURE_DIMENSION
+from backend.services.indexing import build_index
 
 
 def _png_bytes(color: tuple[int, int, int]) -> bytes:

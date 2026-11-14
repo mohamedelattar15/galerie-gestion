@@ -54,7 +54,7 @@ python -m venv .venv
 Pré-calculer les descripteurs du dataset :
 
 ```powershell
-.\.venv\Scripts\python.exe -m backend.index --dataset GHIM-10K --output instance\features.npz
+.\.venv\Scripts\python.exe -m backend.services.indexing --dataset GHIM-10K --output instance\features.npz
 ```
 
 Lancer l'API en mode développement :
@@ -74,7 +74,7 @@ Exécuter les tests :
 Évaluer CBIR et plusieurs itérations FRE hors ligne :
 
 ```powershell
-.\.venv\Scripts\python.exe -m backend.evaluation --queries 100 --top-k 10 --feedback-pool 50 --feedback-count 5 --iterations 3 --seeds 42 43 44 45 46
+.\.venv\Scripts\python.exe -m backend.services.evaluation --queries 100 --top-k 10 --feedback-pool 50 --feedback-count 5 --iterations 3 --seeds 42 43 44 45 46
 ```
 
 Le rapport JSON compare Precision@K et Recall@K sur les mêmes requêtes. Les catégories simulent les jugements positifs uniquement pour cette évaluation hors ligne; elles ne sont pas utilisées par la recherche normale.

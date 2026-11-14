@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import re
-import sqlite3
 from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
 from flask import Blueprint, current_app, jsonify, request, session
-from werkzeug.security import check_password_hash, generate_password_hash
 
-from backend.database import get_db
+from backend.database.repositories.users import DuplicateUsernameError
+from backend.services.auth import authenticate_user, find_user, register_user
 
 auth_api = Blueprint("auth_api", __name__, url_prefix="/api/auth")
 USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_.-]{3,32}\Z")
@@ -54,24 +53,16 @@ def register() -> tuple[dict[str, Any], int]:
             "error": f"Le mot de passe doit contenir entre {MIN_PASSWORD_LENGTH} et {MAX_PASSWORD_LENGTH} caractères."
         }, 400
 
-    database = get_db()
     try:
-        cursor = database.execute(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-            (username, generate_password_hash(password)),
-        )
-        database.commit()
-    except sqlite3.IntegrityError:
+        user_id = register_user(username, password)
+    except DuplicateUsernameError:
         return {"error": "Ce nom d'utilisateur est déjà utilisé."}, 409
 
-    user_id = cursor.lastrowid
-    if user_id is None:
-        raise RuntimeError("La base n'a pas retourné l'identifiant du compte créé.")
     session.clear()
-    session["user_id"] = int(user_id)
+    session["user_id"] = user_id
     session["username"] = username
     current_app.logger.info("A user account was created.")
-    return {"id": int(user_id), "username": username}, 201
+    return {"id": user_id, "username": username}, 201
 
 
 @auth_api.post("/login")
@@ -84,18 +75,15 @@ def login() -> tuple[dict[str, Any], int]:
     if not isinstance(username, str) or not isinstance(password, str):
         return {"error": "username et password sont obligatoires."}, 400
 
-    user = get_db().execute(
-        "SELECT id, username, password_hash FROM users WHERE username = ?",
-        (username.strip(),),
-    ).fetchone()
-    if user is None or not check_password_hash(user["password_hash"], password):
+    user = authenticate_user(username, password)
+    if user is None:
         return {"error": "Nom d'utilisateur ou mot de passe incorrect."}, 401
 
     session.clear()
-    user_id = int(user["id"])
+    user_id, username = user
     session["user_id"] = user_id
-    session["username"] = str(user["username"])
-    return {"id": user_id, "username": str(user["username"])}, 200
+    session["username"] = username
+    return {"id": user_id, "username": username}, 200
 
 
 @auth_api.post("/logout")
@@ -109,10 +97,8 @@ def logout() -> tuple[dict[str, Any], int]:
 @login_required
 def me() -> tuple[dict[str, Any], int]:
     user_id = current_user_id()
-    user = get_db().execute(
-        "SELECT id, username FROM users WHERE id = ?", (user_id,)
-    ).fetchone()
+    user = find_user(user_id) if user_id is not None else None
     if user is None:
         session.clear()
         return {"error": "Le compte associé à cette session n'existe plus."}, 401
-    return {"id": int(user["id"]), "username": str(user["username"])}, 200
+    return {"id": user[0], "username": user[1]}, 200
