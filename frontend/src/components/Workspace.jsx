@@ -7,9 +7,9 @@ import ImageUploader from "./ImageUploader.jsx";
 import SearchPanel from "./SearchPanel.jsx";
 
 const TABS = [
-  { id: "search", label: "Recherche FRE" },
-  { id: "gallery", label: "Ma galerie" },
-  { id: "manage", label: "Importer & organiser" },
+  { id: "search", label: "Recherche FRE", icon: "◍" },
+  { id: "gallery", label: "Ma galerie", icon: "▦" },
+  { id: "manage", label: "Importer & organiser", icon: "＋" },
 ];
 
 export default function Workspace({
@@ -25,17 +25,18 @@ export default function Workspace({
 
   return (
     <div className="workspace-shell">
-      <nav aria-label="Sections de l’application" className="tab-bar" role="tablist">
+      <nav aria-label="Sections de l’application" className="side-nav" role="tablist">
         {TABS.map((item) => (
           <button
             aria-selected={tab === item.id}
-            className={`tab${tab === item.id ? " is-active" : ""}`}
+            className={`side-nav-item${tab === item.id ? " is-active" : ""}`}
             key={item.id}
             onClick={() => setTab(item.id)}
             role="tab"
             type="button"
           >
-            {item.label}
+            <span aria-hidden="true" className="side-nav-icon">{item.icon}</span>
+            <span className="side-nav-label">{item.label}</span>
           </button>
         ))}
       </nav>

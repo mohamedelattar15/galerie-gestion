@@ -4,7 +4,7 @@ Projet universitaire de gestion d'une galerie d'images et de recherche CBIR (*Co
 
 Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une méthode de retour de pertinence qui utilise les images marquées pertinentes pour ajuster les poids des caractéristiques et améliorer le classement des résultats.
 
-> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Le frontend React + Vite permet la connexion, la gestion des images et catégories, les transformations, la visualisation des descripteurs et la recherche avec feedback. L'index GHIM-10K de 10 000 images est généré localement; les sessions de recherche sont conservées dans SQLite. Une première évaluation hors ligne multi-graines est réalisée; des essais avec de vrais utilisateurs restent à conduire.
+> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Le frontend React + Vite propose une navigation latérale, une galerie en mosaïque paginée, un panneau de détails par image et la recherche avec feedback FRE. L'index GHIM-10K de 10 000 images est généré localement; les sessions de recherche sont conservées dans SQLite. Une première évaluation hors ligne multi-graines est réalisée; des essais avec de vrais utilisateurs restent à conduire.
 
 ## Objectifs du projet
 
@@ -41,6 +41,25 @@ Les catégories peuvent servir de vérité de référence pour une évaluation h
 
 **Exigences du projet :** Python, Flask et Flask-RESTful pour l'API REST.  
 **Choix d'implémentation actuels :** React + Vite pour le frontend; SQLite, système de fichiers et descripteurs pré-calculés pour le prototype. React reste un choix technique du groupe, pas une exigence de la méthode CBIR/FRE.
+
+## Interface
+
+L'application utilise une navigation latérale verticale à trois sections :
+
+| Section | Contenu |
+|---|---|
+| **Recherche FRE** | Sélection de l'image requête, résultats classés, feedback et itérations FRE |
+| **Ma galerie** | Mosaïque paginée de 24 images et accès aux détails de chaque image |
+| **Importer & organiser** | Création de catégories et import d'images côte à côte |
+
+**Panneau de détails.** Cliquer sur une image ouvre un panneau latéral, sans recharger ni dérouler la page. Il contient deux onglets :
+
+- **Descripteurs** — histogrammes HSV et LBP, moments de couleur, propriétés GLCM et couleurs dominantes avec pastilles et pourcentages.
+- **Transformations** — rotation (90°, 180°, 270°), miroir, redimensionnement et recadrage, avec les champs adaptés à chaque opération. Une copie est créée; l'originale est conservée.
+
+Le panneau se ferme par la croix, un clic sur le fond ou la touche `Échap`.
+
+**Palette.** Crème `#F3EEE3` pour le fond, noir d'encre `#111111` pour l'en-tête et le texte, orange brûlé `#D9541E` pour les accents, boutons et états actifs.
 
 ## Installation, indexation et lancement
 
@@ -97,9 +116,9 @@ Exécuter les tests :
 
 Le rapport JSON compare Precision@K et Recall@K sur les mêmes requêtes. Par défaut, le retour simulé porte sur les K résultats affichés par l'interface; `--feedback-pool` permet de simuler un oracle et le rapport l'indique. Les catégories simulent les jugements positifs uniquement pour cette évaluation hors ligne; elles ne sont pas utilisées par la recherche normale.
 
-## Interface et routes principales
+## Routes principales
 
-Ouvrir `http://127.0.0.1:5000` après la construction du frontend et le lancement de Flask, ou `http://127.0.0.1:5173` en mode développement Vite. L'interface couvre l'inscription et la connexion, les catégories, l'import et la suppression d'images, les transformations, l'affichage des descripteurs et la recherche avec feedback.
+Les routes sont servies par Flask, que le frontend soit compilé ou lancé avec Vite.
 
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` — authentification.
 - `GET|POST /api/categories` — liste et création des catégories; `DELETE /api/categories/<id>` — suppression d'une catégorie vide.
