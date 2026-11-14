@@ -2,6 +2,8 @@
 
 ## Projet : Content-Based Image Retrieval avec Feature Relevance Estimation (FRE)
 
+> **Nature de ce document :** il explique la méthode et décrit l'implémentation telle qu'elle existe dans le dépôt. Les paramètres de FRE sont définis dans `backend/domain/fre_config.py`, l'organisation du code est détaillée au §9.3 et les résultats expérimentaux au §14.3.
+
 ---
 
 ## 1. Présentation du projet
@@ -155,6 +157,8 @@ Avec :
 Une distance faible indique une plus grande proximité entre les deux images.
 
 Le système trie les résultats par distance croissante et affiche les images les plus proches.
+
+Dans l'implémentation, la recherche initiale utilise des poids uniformes : la formule pondérée du §6.3 se réduit alors à une moyenne des écarts au carré, sans racine carrée, ce qui conserve le même ordre de classement.
 
 ---
 
@@ -371,7 +375,14 @@ w_i =
 
 Le comptage par caractéristique peut être étudié comme une stratégie d'évaluation complémentaire.
 
-### 6.3. Distance euclidienne pondérée
+**Application dans notre implémentation :**
+
+- L'écart-type est calculé avec `ddof=0` (écart-type de population), pour un résultat déterministe.
+- Au moins deux images pertinentes sont exigées; avec une seule, la dispersion n'est pas informative.
+- Les poids ne sont pas normalisés : la distance divise déjà par leur somme.
+- Une caractéristique quasi constante parmi les positives reçoit un poids très élevé; la normalisation de la distance en neutralise l'effet sur le classement. Aucun plafonnement n'est appliqué.
+
+### 6.3. Distance euclidienne quadratique pondérée
 
 Après le calcul des poids, le système utilise une distance pondérée :
 
@@ -397,6 +408,8 @@ Une distance faible signifie que les deux images sont proches en tenant compte d
 
 Il faut respecter cette formule lors de la reproduction de la méthode. Ne pas ajouter automatiquement une racine carrée, car le papier présente ici une distance pondérée sous forme de somme normalisée des distances au carré.
 
+**Application dans notre implémentation :** la fonction `weighted_squared_euclidean` de `backend/domain/fre.py` applique exactement cette formule, sans racine carrée, et rejette les poids négatifs ou de somme nulle.
+
 ### 6.4. Mise à jour du vecteur de requête
 
 Le tableau comparatif du papier associe également FRE à une mise à jour du vecteur de requête par la moyenne des images pertinentes :
@@ -419,7 +432,7 @@ Cette mise à jour permet de représenter la zone de l'espace des caractéristiq
 
 ## 7. Algorithme FRE à implémenter
 
-Voici le déroulement proposé pour notre système.
+Voici le déroulement réellement implémenté dans le projet. Les paramètres de la méthode (epsilon, nombre minimal d'images pertinentes, nombre de résultats) sont centralisés dans `backend/domain/fre_config.py`, source unique de vérité partagée par la formule, l'API et l'évaluation.
 
 ### Étape 1 : Préparation de la base d'images
 
@@ -427,15 +440,15 @@ Voici le déroulement proposé pour notre système.
 - Vérifier les formats et les fichiers.
 - Extraire les caractéristiques visuelles de chaque image.
 - Normaliser les descripteurs.
-- Stocker les vecteurs dans une base de données ou un fichier dédié.
+- Enregistrer les vecteurs dans un index NumPy compressé (`instance/features.npz`), chargé au démarrage de l'API.
 
 ### Étape 2 : Recherche initiale
 
-- L'utilisateur sélectionne une image requête.
-- Le système extrait son vecteur de caractéristiques.
-- Le système compare ce vecteur avec les vecteurs de la base.
-- Les distances sont calculées.
-- Les images les plus proches sont affichées.
+- L'utilisateur sélectionne une image requête (fichier envoyé ou identifiant d'une image indexée).
+- Le système extrait son vecteur de caractéristiques et le normalise avec les paramètres de l'index.
+- Le système compare ce vecteur avec les vecteurs de la base, avec des poids uniformes.
+- Les images les plus proches sont affichées; si la requête appartient à l'index, elle est exclue de ses propres résultats.
+- Une session de recherche est créée et conservée en base avec son empreinte d'index.
 
 Cette première recherche constitue la référence avant rétroaction.
 
@@ -446,11 +459,15 @@ L'utilisateur indique les images :
 - Pertinentes (Relevant).
 - Non pertinentes (Non-Relevant).
 
-Ces informations sont enregistrées pour l'itération actuelle.
+Les deux listes sont validées : pas de doublons, pas d'image à la fois pertinente et non pertinente, et uniquement des images issues des résultats de l'itération courante.
+
+**Les images non pertinentes sont conservées mais ne participent pas au calcul des poids.** L'équation (4) utilisée par G13 ne dépend que des images pertinentes; les négatives servent aux stratégies de re-weighting comparées dans l'article, pas à FRE.
 
 ### Étape 4 : Estimation des poids
 
 À partir des images pertinentes, calculer l'écart-type de chaque caractéristique.
+
+**Condition d'application :** au moins deux images pertinentes. Avec une seule image, l'écart-type est nul et n'informe pas sur la dispersion; l'API répond alors avec une erreur 422 et la recherche précédente est conservée.
 
 Pour chaque dimension \(i\) :
 
@@ -466,7 +483,7 @@ w_i =
 \frac{1}{0.0001+\sigma_{rel,i}^{k}}
 \]
 
-Les poids peuvent ensuite être normalisés pour faciliter leur utilisation.
+L'écart-type de population (`ddof=0`) est utilisé pour rendre le calcul déterministe. Les poids ne sont **pas** normalisés : la distance de l'étape 6 divise déjà par leur somme, ce qui rend toute normalisation préalable sans effet sur le classement.
 
 ### Étape 5 : Mise à jour de la requête
 
@@ -489,7 +506,7 @@ Mean(R)
 
 L'utilisateur peut donner une nouvelle rétroaction.
 
-Le système met à jour les poids et la requête, puis effectue une nouvelle recherche.
+À chaque itération, les poids et le vecteur de requête sont recalculés **uniquement à partir des images pertinentes de cette itération**, sans cumul des retours précédents.
 
 Le processus se répète jusqu'à ce que l'utilisateur soit satisfait des résultats.
 
@@ -502,28 +519,30 @@ INPUT:
     Database D
     Query image Q
     Number of results K
+    epsilon = 0.0001
+    minimum_relevant = 2
 
 OUTPUT:
     Ranked images
 
-1. Extract feature vector FQ from Q
+1. Extract and normalize feature vector FQ from Q
 
-2. For each image I in D:
-       Extract or load feature vector FI
+2. Load precomputed feature vectors FI for every image I in D
 
-3. Perform initial retrieval:
-       Compute Euclidean distance between FQ and FI
+3. Perform initial retrieval with uniform weights:
+       Compute weighted squared distance between FQ and FI
        Sort images by ascending distance
        Display top K images
+       Create a search session bound to the index fingerprint
 
-4. Collect user feedback:
+4. Collect user feedback on the displayed results:
        R = relevant images
-       N = non-relevant images
+       N = non-relevant images (validated, not used by FRE)
 
-5. If R is empty:
-       Keep the previous search
-       Ask for relevant feedback
-       Stop or repeat
+5. If |R| < minimum_relevant:
+       Keep the previous search and its weights
+       Return an error asking for more relevant images
+       Stop
 
 6. Compute the new query:
        Q_new = Mean(feature vectors of R)
@@ -531,19 +550,17 @@ OUTPUT:
 7. Estimate feature weights:
        For each feature dimension i:
            sigma_i = StandardDeviation(R[:, i])
-           w_i = 1 / (0.0001 + sigma_i)
+           w_i = 1 / (epsilon + sigma_i)
 
-8. Normalize weights if necessary
-
-9. Perform weighted retrieval:
+8. Perform weighted retrieval:
        For each image I in D:
-           Compute weighted distance between Q_new and FI
+           Compute sum(w_i * (Q_new_i - FI_i)^2) / sum(w_i)
 
-10. Sort images by ascending weighted distance
+9. Sort images by ascending weighted distance
 
-11. Display new results
+10. Display new results and store the updated session
 
-12. Repeat from step 4 if the user wants another iteration
+11. Repeat from step 4 if the user wants another iteration
 
 END
 ```
@@ -576,7 +593,7 @@ Ce dataset constitue la collection d'images utilisée pour tester le fonctionnem
 
 ## 9. Architecture technique proposée
 
-Le projet est organisé autour de deux parties principales : l'application web et l'API de traitement d'images.
+Le projet est organisé autour de deux parties principales : l'application web et l'API de traitement d'images. Côté backend, le code est réparti en cinq couches.
 
 ### 9.1. Application Web
 
@@ -602,7 +619,7 @@ L'API est développée avec :
 - Python.
 - Flask.
 - Flask-RESTful.
-- Bibliothèques de traitement d'images et d'extraction de caractéristiques.
+- Pillow et NumPy pour le traitement d'images et les calculs.
 
 Elle assure :
 
@@ -612,7 +629,23 @@ Elle assure :
 - L'exécution de l'algorithme FRE.
 - Le retour des résultats à l'application web.
 
-### 9.3. Communication entre les composants
+### 9.3. Organisation en couches du backend
+
+```text
+backend/
+├── app.py            Fabrique Flask : configuration et enregistrement des routes
+├── routes/           Couche HTTP : validation des entrées et réponses JSON
+├── services/         Cas d'usage : recherche, authentification, galerie, indexation
+├── domain/           Algorithme pur : descripteurs, FRE, normalisation, classement
+├── database/         Connexion SQLite et repositories (SQL centralisé)
+└── utils/            Utilitaires techniques : lecture et stockage des images
+```
+
+Règle de dépendance : `routes → services → domain/database`. Le domaine ne dépend ni de Flask ni de SQLite, ce qui permet de tester la formule FRE et la distance sans serveur.
+
+Les paramètres de FRE (`epsilon`, `minimum_relevant`, `top_k`, fenêtre de feedback) sont définis dans `domain/fre_config.py`. Modifier une valeur de la méthode ne demande donc qu'une seule modification.
+
+### 9.4. Communication entre les composants
 
 L'application web communique avec l'API Python à travers des requêtes HTTP REST.
 
@@ -646,65 +679,80 @@ Affichage des images similaires
 
 ---
 
-## 10. API REST : endpoints proposés
+## 10. API REST : endpoints implémentés
 
-Les endpoints suivants constituent une proposition d'organisation de l'API.
+Les endpoints suivants sont réellement exposés par l'API.
 
 | Méthode | Endpoint | Description |
 |---|---|---|
-| POST | `/api/features/extract` | Extraire les descripteurs d'une image |
-| POST | `/api/features/extract-batch` | Extraire les descripteurs de plusieurs images |
-| GET | `/api/features/<image_id>` | Récupérer les descripteurs d'une image |
-| POST | `/api/search` | Effectuer une recherche simple |
-| POST | `/api/search/feedback` | Effectuer une recherche avec rétroaction |
-| POST | `/api/fre/weights` | Calculer les poids FRE |
-| POST | `/api/fre/update-query` | Mettre à jour le vecteur de requête |
+| GET | `/health` | État de l'API et de l'index chargé |
+| POST | `/api/auth/register` | Créer un compte |
+| POST | `/api/auth/login` | Ouvrir une session |
+| POST | `/api/auth/logout` | Fermer la session |
+| GET | `/api/auth/me` | Utilisateur courant |
+| GET | `/api/categories` | Lister les catégories |
+| POST | `/api/categories` | Créer une catégorie |
+| DELETE | `/api/categories/<id>` | Supprimer une catégorie vide |
+| GET | `/api/images` | Lister la galerie (`limit`, `offset`, `category_id`) |
+| POST | `/api/images` | Importer une ou plusieurs images |
+| GET | `/api/images/<id>` | Métadonnées d'une image |
+| GET | `/api/images/<id>/file` | Aperçu ou téléchargement (`?download=1`) |
+| GET | `/api/images/<id>/descriptors` | Calculer les descripteurs d'une image |
+| POST | `/api/images/<id>/transform` | Créer une image dérivée |
+| DELETE | `/api/images/<id>` | Supprimer une image |
+| POST | `/api/features/extract` | Extraire les descripteurs d'un lot d'images |
+| POST | `/api/search` | Recherche initiale |
+| POST | `/api/search/feedback` | Appliquer une itération FRE |
+| GET | `/api/indexed-images/<id>/file` | Aperçu d'une image de l'index GHIM-10K |
 
 ### Exemple de requête pour la recherche simple
 
-```json
-{
-  "query_image_id": 15,
-  "top_k": 10
-}
+Requête `multipart/form-data` :
+
+```text
+query_image_id = 15      (ou un fichier dans le champ "query")
+top_k = 10
 ```
 
 ### Exemple de requête pour la rétroaction
 
+Requête JSON :
+
 ```json
 {
-  "query_image_id": 15,
+  "session_id": "3f9c2a...",
   "relevant_ids": [21, 35, 48],
   "non_relevant_ids": [18, 27],
-  "iteration": 1,
   "top_k": 10
 }
 ```
+
+Le `session_id` est obligatoire : il garantit que le feedback porte sur les résultats de l'itération courante et qu'il appartient à l'utilisateur connecté. Une session est refusée si l'index a changé depuis sa création.
 
 ### Exemple de réponse
 
 ```json
 {
-  "method": "FRE",
+  "session_id": "3f9c2a...",
   "iteration": 1,
+  "ignored_non_relevant_count": 2,
+  "weights": [10000.0, 1.42, 0.87],
   "results": [
     {
-      "image_id": 21,
+      "id": 21,
+      "path": "aircraft/10_5001.jpg",
+      "category": "aircraft",
       "distance": 0.125
-    },
-    {
-      "image_id": 35,
-      "distance": 0.183
     }
   ]
 }
 ```
 
-Les valeurs sont uniquement illustratives. Les résultats réels seront calculés à partir des images et des descripteurs du dataset.
+Les valeurs sont uniquement illustratives. `ignored_non_relevant_count` rappelle que les négatives sont reçues mais non utilisées par l'équation (4).
 
 ---
 
-## 11. Interface utilisateur : fonctionnalités à développer
+## 11. Interface utilisateur : fonctionnalités implémentées
 
 ### 11.1. Authentification
 
@@ -714,7 +762,7 @@ Les valeurs sont uniquement illustratives. Les résultats réels seront calculé
 
 ### 11.2. Galerie d'images
 
-- Afficher les images disponibles.
+- Afficher les images disponibles, par pages de 24 avec navigation.
 - Importer une ou plusieurs images.
 - Télécharger une image.
 - Supprimer une ou plusieurs images.
@@ -729,6 +777,10 @@ Exemples :
 
 - Recadrage (Crop).
 - Redimensionnement (Resize).
+- Rotation par multiples de 90°.
+- Retournement horizontal ou vertical.
+
+L'originale est toujours conservée; la copie transformée est enregistrée comme image dérivée.
 
 ### 11.4. Visualisation des descripteurs
 
@@ -832,7 +884,7 @@ Le dossier `GHIM-10K/` et les dossiers `instance/` présents localement sont ign
 
 ## 13. Plan de réalisation du travail
 
-Le développement peut être organisé en plusieurs phases.
+Le développement est organisé en sept phases. Toutes sont implémentées; les tests et l'évaluation sont reproductibles via `pytest` et `python -m backend.services.evaluation`.
 
 ### Phase 1 : Étude et préparation
 
@@ -876,7 +928,7 @@ Cette phase constitue le cœur scientifique du travail attribué au groupe.
 - Calculer l'écart-type de chaque dimension.
 - Calculer les poids avec la formule FRE.
 - Mettre à jour le vecteur de requête.
-- Implémenter la distance euclidienne pondérée.
+- Implémenter la distance euclidienne quadratique pondérée.
 - Relancer la recherche.
 - Gérer plusieurs itérations de rétroaction.
 
@@ -965,14 +1017,14 @@ Il est important de comparer deux situations :
 
 Exemple de tableau pour présenter les résultats expérimentaux :
 
-| Méthode | Precision | Recall |
+| Méthode | Precision@10 | Recall@10 |
 |---|---:|---:|
-| Recherche simple | À mesurer | À mesurer |
-| FRE - Itération 1 | À mesurer | À mesurer |
-| FRE - Itération 2 | À mesurer | À mesurer |
-| FRE - Itération 3 | À mesurer | À mesurer |
+| Recherche simple | 0,3336 ± 0,0206 | 0,00669 ± 0,00041 |
+| FRE - Itération 1 | 0,4610 ± 0,0365 | 0,00924 ± 0,00073 |
+| FRE - Itération 2 | 0,4842 ± 0,0387 | 0,00970 ± 0,00077 |
+| FRE - Itération 3 | 0,4844 ± 0,0405 | 0,00971 ± 0,00081 |
 
-Les valeurs doivent être obtenues à partir des expérimentations réalisées sur GHIM-10K.
+Ces valeurs proviennent de cinq tirages reproductibles de 100 requêtes (graines 42 à 46) sur GHIM-10K, avec \(N=10\) et une fenêtre de feedback de 10 résultats, identique à ce que l'interface affiche. Le détail du protocole est décrit dans `README_IMPLEMENTATION.md`.
 
 **Important :** Les performances annoncées dans le papier scientifique correspondent à ses propres expériences et à sa propre base de données. Elles ne doivent pas être présentées comme des résultats obtenus sur GHIM-10K.
 
@@ -1043,15 +1095,12 @@ Le dossier doit contenir :
 | Flask | Création de l'API |
 | Flask-RESTful | Gestion des endpoints REST |
 | NumPy | Manipulation des vecteurs et calculs numériques |
-| OpenCV | Lecture et traitement des images |
-| scikit-image | Extraction GLCM et LBP |
-| scikit-learn | Clustering et outils statistiques |
-| Matplotlib | Visualisation des histogrammes |
-| Pillow | Manipulation des images |
-| Frontend Web | Interface utilisateur |
-| Base de données | Gestion des utilisateurs, images et catégories |
+| Pillow | Lecture, transformation et stockage des images |
+| React + Vite | Interface utilisateur |
+| SQLite | Gestion des utilisateurs, images, catégories et sessions |
+| pytest | Tests automatisés |
 
-Les bibliothèques proposées sont des choix techniques possibles pour réaliser les fonctionnalités demandées.
+L'extraction GLCM et LBP est implémentée directement avec NumPy : OpenCV, scikit-image, scikit-learn et Matplotlib ne sont pas utilisés dans l'implémentation actuelle. Les histogrammes sont dessinés dans le navigateur avec l'API Canvas.
 
 ---
 
