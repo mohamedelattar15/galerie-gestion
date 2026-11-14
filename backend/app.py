@@ -20,25 +20,30 @@ from backend.routes.health import HealthResource
 from backend.routes.search import FeedbackResource, SearchResource
 from backend.services.indexing import load_index
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+INSTANCE_DIR = PROJECT_ROOT / "instance"
+
 
 def create_app(
     index_path: Path | None = None,
     config: dict[str, Any] | None = None,
 ) -> Flask:
-    app = Flask(__name__)
+    # Pin the instance folder to the repository root so ``python -m backend.app``
+    # and ``python backend/app.py`` share the same database and uploads.
+    app = Flask(__name__, instance_path=str(INSTANCE_DIR))
     app.config.from_mapping(
         SECRET_KEY=os.environ.get("SECRET_KEY") or secrets.token_urlsafe(32),
         DATABASE=os.environ.get(
             "DATABASE_PATH",
-            str(Path(app.instance_path) / "cbir.sqlite3"),
+            str(INSTANCE_DIR / "cbir.sqlite3"),
         ),
         UPLOAD_DIR=os.environ.get(
             "UPLOAD_DIR",
-            str(Path(app.instance_path) / "uploads"),
+            str(INSTANCE_DIR / "uploads"),
         ),
         DATASET_DIR=os.environ.get(
             "DATASET_DIR",
-            str(Path(__file__).resolve().parent.parent / "GHIM-10K"),
+            str(PROJECT_ROOT / "GHIM-10K"),
         ),
         MAX_CONTENT_LENGTH=64 * 1024 * 1024,
         SESSION_COOKIE_HTTPONLY=True,
@@ -59,7 +64,7 @@ def create_app(
     configured_index = index_path or Path(
         os.environ.get(
             "CBIR_INDEX_PATH",
-            Path(__file__).resolve().parent.parent / "instance" / "features.npz",
+            INSTANCE_DIR / "features.npz",
         )
     )
     app.extensions["cbir_index"] = (

@@ -8,6 +8,7 @@ frontend/node_modules/
 backend/static/react/
 frontend/dist/
 instance/
+backend/instance/
 storage/
 features/descriptors/
 GHIM-10K/
