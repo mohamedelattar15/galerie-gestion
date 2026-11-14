@@ -1,6 +1,6 @@
 # Plan et implémentation — Projet CBIR | Groupe G13
 
-> **Avancement :** l'extraction des descripteurs, la normalisation, la construction d'index, la recherche simple et FRE sont implémentées dans le backend et couvertes par des tests. L'authentification, l'interface web, la gestion complète des images, les transformations, la visualisation graphique et la persistance des sessions restent à développer. Le reste de ce document décrit l'architecture cible.
+> **Avancement :** l'extraction des descripteurs, la normalisation, l'indexation, la recherche CBIR/FRE, l'authentification, la galerie SQLite et les transformations sont implémentées et testées. Une interface web HTML/CSS/JavaScript couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. Il reste à créer l'index complet GHIM-10K, à persister les sessions FRE et à réaliser l'évaluation expérimentale. Le dataset et l'index complet ne sont pas fournis dans le dépôt.
 
 ## 1. Présentation du projet
 
@@ -367,17 +367,23 @@ Le prototype ne nécessite pas obligatoirement React ou PostgreSQL. Éviter d'aj
 
 ## 7. Organisation du projet
 
-Structure du code déjà créé :
+Structure actuelle du code :
 
 ```text
 galerie-gestion/
 ├── backend/
 │   ├── app.py             # API Flask-RESTful et routes de recherche
+│   ├── auth.py            # Inscription, connexion et sessions utilisateur
+│   ├── database.py        # Schéma et accès SQLite
 │   ├── features.py        # Extraction couleur, GLCM et LBP
 │   ├── fre.py             # Poids FRE et distance pondérée
+│   ├── gallery.py         # Catégories, galerie et transformations
+│   ├── image_io.py        # Validation et stockage des images
 │   ├── index.py           # Pré-calcul et chargement de l'index
 │   ├── normalization.py   # Normalisation ajustée sur la base
 │   └── retrieval.py       # Classement et sessions de recherche
+│   ├── static/            # Interface CSS et JavaScript
+│   └── templates/         # Page de l'application
 ├── tests/
 │   ├── test_api.py
 │   ├── test_features.py
@@ -388,7 +394,7 @@ galerie-gestion/
 └── README_IMPLEMENTATION.md
 ```
 
-Le dossier `GHIM-10K/` est une donnée locale ignorée par Git et ne doit pas être remis. L'index généré est stocké dans `instance/`, également ignoré. Les modules d'authentification, de gestion persistante de la galerie, les transformations, l'interface et la persistance des sessions restent à ajouter.
+Le dossier `GHIM-10K/` est une donnée locale ignorée par Git et ne doit pas être remis. L'index généré est stocké dans `instance/`, également ignoré. Les comptes, catégories et métadonnées de la galerie sont persistés dans SQLite; les fichiers images sont conservés dans le stockage local. Les sessions FRE sont en mémoire et ne survivent pas au redémarrage.
 
 ---
 
@@ -402,14 +408,18 @@ Les endpoints suivants permettent de structurer les échanges entre frontend et 
 | POST | `/api/features/extract` | Extraire les caractéristiques d'une image ou d'un lot | Implémenté |
 | POST | `/api/search` | Effectuer une recherche simple | Implémenté |
 | POST | `/api/search/feedback` | Effectuer une recherche avec feedback FRE | Implémenté |
-| POST | `/api/images/upload` | Importer et enregistrer des images | À développer |
-| GET | `/api/images` | Récupérer les images de la galerie | À développer |
-| GET | `/api/images/<id>` | Consulter une image | À développer |
-| DELETE | `/api/images/<id>` | Supprimer une image | À développer |
-| POST | `/api/images/<id>/transform` | Créer une image transformée | À développer |
-| GET | `/api/features/<id>` | Récupérer les descripteurs sauvegardés | À développer |
+| POST | `/api/auth/register`, `/api/auth/login` | Créer un compte et se connecter | Implémenté |
+| POST | `/api/auth/logout`, GET `/api/auth/me` | Fermer la session et consulter le compte | Implémenté |
+| GET, POST | `/api/categories` | Lister et créer des catégories | Implémenté |
+| GET, POST | `/api/images` | Lister et importer des images | Implémenté |
+| GET | `/api/images/<id>/file` | Afficher ou télécharger une image personnelle | Implémenté |
+| GET | `/api/images/<id>/descriptors` | Calculer les descripteurs d'une image de la galerie | Implémenté |
+| DELETE | `/api/images/<id>` | Supprimer une image | Implémenté |
+| POST | `/api/images/<id>/transform` | Créer une image transformée | Implémenté |
+| GET | `/api/indexed-images/<id>/file` | Afficher une image de l'index de recherche | Implémenté |
+| DELETE | `/api/categories/<id>` | Supprimer une catégorie vide | Implémenté |
 
-`POST /api/features/extract` accepte soit un fichier image, soit plusieurs fichiers image dans une même requête multipart (`image` ou `images`). La réponse contient un résultat par image et indique les erreurs éventuelles sans empêcher le traitement des autres fichiers valides. La visualisation graphique dans l'interface reste à développer.
+`POST /api/features/extract` accepte soit un fichier image, soit plusieurs fichiers image dans une même requête multipart (`image` ou `images`). La réponse contient un résultat par image et indique les erreurs éventuelles sans empêcher le traitement des autres fichiers valides. L'interface affiche les histogrammes HSV et LBP ainsi que les moments de couleur et les propriétés GLCM. Les descripteurs des images personnelles sont calculés à la demande; ils ne sont pas stockés en base.
 
 ### Exemple : recherche simple
 
@@ -440,7 +450,7 @@ Les identifiants sont des exemples destinés à illustrer le format des requête
 
 Le développement doit suivre un ordre permettant de valider progressivement chaque partie.
 
-### Phase 1 — Préparation
+### Phase 1 — Préparation (terminée)
 
 - Étudier le cahier des charges.
 - Comprendre le papier scientifique.
@@ -448,7 +458,7 @@ Le développement doit suivre un ordre permettant de valider progressivement cha
 - Télécharger et examiner GHIM-10K.
 - Définir la structure du projet.
 
-### Phase 2 — Extraction des caractéristiques
+### Phase 2 — Extraction des caractéristiques (terminée)
 
 - Implémenter les histogrammes de couleurs.
 - Calculer les moments de couleur.
@@ -462,7 +472,7 @@ Le développement doit suivre un ordre permettant de valider progressivement cha
 - Pré-calculer les descripteurs du dataset et stocker leur version ainsi que les paramètres de normalisation.
 - Afficher les histogrammes de couleur et LBP, ainsi que les valeurs des moments de couleur et propriétés GLCM.
 
-### Phase 3 — Moteur de recherche CBIR
+### Phase 3 — Moteur de recherche CBIR (terminée)
 
 - Sélectionner une image requête.
 - Comparer ses caractéristiques avec la base.
@@ -470,7 +480,7 @@ Le développement doit suivre un ordre permettant de valider progressivement cha
 - Trier les résultats.
 - Afficher les images similaires.
 
-### Phase 4 — Implémentation FRE (G13)
+### Phase 4 — Implémentation FRE (G13) (terminée)
 
 - Collecter les retours utilisateur.
 - Utiliser les images pertinentes de l'itération courante; ne pas utiliser directement les votes négatifs dans la formule FRE.
@@ -481,14 +491,14 @@ Le développement doit suivre un ordre permettant de valider progressivement cha
 - Relancer la recherche.
 - Gérer les itérations.
 
-### Phase 5 — Développement de l'API
+### Phase 5 — Développement de l'API (implémentée)
 
 - Configurer Flask et Flask-RESTful.
 - Créer les endpoints.
 - Intégrer les modules de traitement.
 - Tester les réponses JSON.
 
-### Phase 6 — Développement frontend
+### Phase 6 — Développement frontend (première version implémentée)
 
 - Créer les pages de l'application.
 - Développer la galerie.
@@ -497,7 +507,7 @@ Le développement doit suivre un ordre permettant de valider progressivement cha
 - Ajouter l'interface de rétroaction.
 - Afficher les résultats FRE.
 
-### Phase 7 — Tests et évaluation
+### Phase 7 — Tests et évaluation (tests unitaires implémentés; évaluation à réaliser)
 
 - Vérifier l'extraction des descripteurs.
 - Tester la recherche classique.

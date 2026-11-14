@@ -4,7 +4,7 @@ Projet universitaire de gestion d'une galerie d'images et de recherche CBIR (*Co
 
 Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une méthode de retour de pertinence qui utilise les images marquées pertinentes pour ajuster les poids des caractéristiques et améliorer le classement des résultats.
 
-> **Avancement :** le noyau backend est commencé : extraction de descripteurs, index pré-calculé, recherche CBIR et boucle de feedback FRE sont disponibles par API. L'authentification, l'interface web, la gestion complète de la galerie, les transformations et la persistance des sessions restent à développer.
+> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Une interface web HTML/CSS/JavaScript permet la connexion, la gestion des images et catégories, les transformations, la visualisation des descripteurs et la recherche avec feedback. Il reste à générer l'index GHIM-10K, à persister les sessions de recherche et à réaliser l'évaluation expérimentale.
 
 ## Objectifs du projet
 
@@ -71,11 +71,17 @@ Exécuter les tests :
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-## Routes disponibles
+## Interface et routes principales
 
+Ouvrir `http://127.0.0.1:5000` après le lancement du serveur. L'interface couvre l'inscription et la connexion, les catégories, l'import et la suppression d'images, les transformations, l'affichage des descripteurs et la recherche avec feedback.
+
+- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` — authentification.
+- `GET|POST /api/categories` — liste et création des catégories; `DELETE /api/categories/<id>` — suppression d'une catégorie vide.
+- `GET|POST /api/images` — galerie et import; `GET /api/images/<id>/file` — aperçu/téléchargement; `GET /api/images/<id>/descriptors` — calcul des descripteurs; `POST /api/images/<id>/transform` — création d'une copie transformée; `DELETE /api/images/<id>` — suppression.
 - `POST /api/features/extract` — multipart avec `image` ou plusieurs fichiers `images`.
 - `POST /api/search` — multipart avec `query` et `top_k`, ou avec `query_image_id`.
 - `POST /api/search/feedback` — JSON contenant `session_id`, au moins deux `relevant_ids`, et éventuellement des `non_relevant_ids`.
+- `GET /api/indexed-images/<id>/file` — aperçu d'une image de l'index de recherche.
 
 Les retours négatifs sont reçus mais ne sont pas utilisés par la formule FRE de G13. Les sessions sont actuellement conservées en mémoire et disparaissent au redémarrage du serveur.
 
