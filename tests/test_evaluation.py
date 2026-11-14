@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from backend.evaluation import evaluate_fre
+from backend.evaluation import evaluate_fre, evaluate_multiple_seeds
 from backend.index import build_index
 
 
@@ -65,3 +65,28 @@ def test_evaluate_fre_skips_queries_without_two_positive_examples(tmp_path: Path
     assert iteration["feedback_applied"] == 0
     assert iteration["feedback_skipped"] == 3
     assert iteration["precision_at_k"] == report["baseline"]["precision_at_k"] == 0.0
+
+
+def test_evaluate_multiple_seeds_aggregates_run_metrics(tmp_path: Path) -> None:
+    dataset = _make_dataset(
+        tmp_path,
+        {"objects": [(255, 0, 0), (0, 255, 0), (0, 0, 255)]},
+    )
+    index = build_index(dataset, tmp_path / "features.npz")
+
+    report = evaluate_multiple_seeds(
+        index,
+        seeds=[12, 13],
+        query_count=3,
+        top_k=1,
+        feedback_pool=2,
+        feedback_count=2,
+        iterations=1,
+    )
+
+    assert report["protocol"]["seeds"] == [12, 13]
+    assert len(report["runs"]) == 2
+    assert report["mean_and_std_across_seeds"]["baseline"]["precision_at_k"] == {
+        "mean": 1.0,
+        "population_std": 0.0,
+    }

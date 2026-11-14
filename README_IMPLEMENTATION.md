@@ -1,6 +1,6 @@
 # Plan et implémentation — Projet CBIR | Groupe G13
 
-> **Avancement :** l'extraction des descripteurs, la normalisation, la recherche CBIR/FRE, l'authentification, la galerie SQLite, les transformations et la persistance des sessions de recherche sont implémentées et testées. Une interface web HTML/CSS/JavaScript couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. L'index GHIM-10K complet (10 000 images, 329 dimensions) a été généré localement et une première simulation d'évaluation hors ligne a été exécutée. Des essais plus larges et une validation par des utilisateurs restent à conduire. Le dataset et l'index sont exclus du dépôt.
+> **Avancement :** l'extraction des descripteurs, la normalisation, la recherche CBIR/FRE, l'authentification, la galerie SQLite, les transformations et la persistance des sessions de recherche sont implémentées et testées. Une interface web HTML/CSS/JavaScript couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. L'index GHIM-10K complet (10 000 images, 329 dimensions) a été généré localement et une première évaluation hors ligne multi-graines a été exécutée. La validation par de vrais utilisateurs reste à conduire. Le dataset et l'index sont exclus du dépôt.
 
 ## 1. Présentation du projet
 
@@ -554,16 +554,16 @@ L'outil `python -m backend.evaluation` exécute ce protocole et émet un rapport
 
 Les résultats doivent être mesurés sur GHIM-10K et interprétés après exécution du protocole. Présenter ses paramètres (requêtes, catégories, \(N\), sélection des retours et nombre d'itérations) avec toute performance annoncée. Les chiffres de l'article sur son propre dataset ne doivent pas être présentés comme des résultats GHIM-10K.
 
-### Résultat de la première simulation
+### Résultat de la première évaluation multi-graines
 
-Une exécution pilote a utilisé 100 requêtes tirées avec la graine 42, \(N=10\), une fenêtre de feedback de 50 résultats et jusqu'à cinq positifs simulés par itération. Le feedback FRE a pu être appliqué à 90 requêtes; pour 10 requêtes, moins de deux positifs étaient disponibles.
+L'évaluation a utilisé cinq tirages reproductibles de 100 requêtes chacun (graines 42 à 46), \(N=10\), une fenêtre de feedback de 50 résultats et jusqu'à cinq positifs simulés par itération. Le feedback FRE a été appliqué à 90–98 requêtes sur 100 selon le tirage; les autres requêtes n'avaient pas deux positifs disponibles. Le tableau indique la moyenne et l'écart-type de population des métriques moyennes des cinq tirages.
 
-| Classement | Précision@10 moyenne | Rappel@10 moyen |
+| Classement | Précision@10 (moyenne ± écart-type) | Rappel@10 (moyenne ± écart-type) |
 |---|---:|---:|
-| CBIR initial | 0,3510 | 0,00703 |
-| Après FRE — itération 1 | 0,5830 | 0,01168 |
-| Après FRE — itération 2 | 0,6010 | 0,01204 |
-| Après FRE — itération 3 | 0,6030 | 0,01208 |
+| CBIR initial | 0,3336 ± 0,0206 | 0,00669 ± 0,00041 |
+| Après FRE — itération 1 | 0,6036 ± 0,0286 | 0,01210 ± 0,00057 |
+| Après FRE — itération 2 | 0,6208 ± 0,0296 | 0,01244 ± 0,00059 |
+| Après FRE — itération 3 | 0,6208 ± 0,0278 | 0,01244 ± 0,00056 |
 
 Ces chiffres décrivent uniquement cette simulation oracle fondée sur les catégories GHIM-10K; ils ne mesurent pas le comportement de vrais utilisateurs et ne constituent pas une comparaison directe avec les résultats de l'article.
 
@@ -572,6 +572,8 @@ Ces chiffres décrivent uniquement cette simulation oracle fondée sur les caté
 ## 11. Livrables
 
 ### Rapport scientifique
+
+Une première version de travail est disponible dans [RAPPORT_G13_CBIR_FRE.docx](RAPPORT_G13_CBIR_FRE.docx). Les noms des membres, l’établissement et les résultats des tests avec de vrais utilisateurs doivent être ajoutés avant la remise finale.
 
 Le rapport doit présenter :
 

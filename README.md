@@ -4,7 +4,7 @@ Projet universitaire de gestion d'une galerie d'images et de recherche CBIR (*Co
 
 Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une méthode de retour de pertinence qui utilise les images marquées pertinentes pour ajuster les poids des caractéristiques et améliorer le classement des résultats.
 
-> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Une interface web HTML/CSS/JavaScript permet la connexion, la gestion des images et catégories, les transformations, la visualisation des descripteurs et la recherche avec feedback. L'index GHIM-10K de 10 000 images est généré localement; les sessions de recherche sont conservées dans SQLite. Une première simulation d'évaluation hors ligne est réalisée; des essais plus larges et des retours utilisateurs restent à conduire.
+> **Avancement :** le backend d'extraction, indexation, recherche CBIR/FRE, authentification et gestion de galerie est implémenté. Une interface web HTML/CSS/JavaScript permet la connexion, la gestion des images et catégories, les transformations, la visualisation des descripteurs et la recherche avec feedback. L'index GHIM-10K de 10 000 images est généré localement; les sessions de recherche sont conservées dans SQLite. Une première évaluation hors ligne multi-graines est réalisée; des essais avec de vrais utilisateurs restent à conduire.
 
 ## Objectifs du projet
 
@@ -25,9 +25,10 @@ Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une mé
 
 ## Documentation
 
+- [Rapport de projet G13 — version de travail](RAPPORT_G13_CBIR_FRE.docx)
 - [Plan d'architecture et d'implémentation](README_IMPLEMENTATION.md) — architecture proposée, formule FRE, API, étapes de réalisation, cas limites et protocole d'évaluation.
 - [Explication détaillée du projet](explication.md)
-- Article de référence : `Reweighing Strategies for Relevance Feedback in CBIR.pdf`
+- Article de référence : Renuka Devi SM, [DOI 10.17148/IJARCCE.2016.511118](https://doi.org/10.17148/IJARCCE.2016.511118). La copie PDF de travail n'est pas incluse dans l'archive de livraison.
 
 Le plan distingue les exigences du projet des choix techniques proposés. La formule et les choix d'implémentation de FRE doivent être décrits conformément à l'article et à la méthode attribuée à G13.
 
@@ -74,7 +75,7 @@ Exécuter les tests :
 Évaluer CBIR et plusieurs itérations FRE hors ligne :
 
 ```powershell
-.\.venv\Scripts\python.exe -m backend.evaluation --queries 100 --top-k 10 --feedback-pool 50 --feedback-count 5 --iterations 3 --seed 42
+.\.venv\Scripts\python.exe -m backend.evaluation --queries 100 --top-k 10 --feedback-pool 50 --feedback-count 5 --iterations 3 --seeds 42 43 44 45 46
 ```
 
 Le rapport JSON compare Precision@K et Recall@K sur les mêmes requêtes. Les catégories simulent les jugements positifs uniquement pour cette évaluation hors ligne; elles ne sont pas utilisées par la recherche normale.

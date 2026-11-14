@@ -127,6 +127,69 @@ def evaluate_fre(
     }
 
 
+def evaluate_multiple_seeds(
+    index: DatasetIndex,
+    *,
+    seeds: list[int],
+    query_count: int = 100,
+    top_k: int = 10,
+    feedback_pool: int = 50,
+    feedback_count: int = 5,
+    iterations: int = 3,
+) -> dict[str, Any]:
+    """Run the same evaluation for several seeds and aggregate run-level metrics."""
+    if not seeds or len(set(seeds)) != len(seeds):
+        raise ValueError("seeds doit contenir au moins une valeur unique par exécution.")
+
+    reports = [
+        evaluate_fre(
+            index,
+            query_count=query_count,
+            top_k=top_k,
+            feedback_pool=feedback_pool,
+            feedback_count=feedback_count,
+            iterations=iterations,
+            seed=seed,
+        )
+        for seed in seeds
+    ]
+
+    def summarize(values: list[float]) -> dict[str, float]:
+        return {
+            "mean": float(np.mean(values)),
+            "population_std": float(np.std(values)),
+        }
+
+    baseline_summary = {
+        metric: summarize([report["baseline"][metric] for report in reports])
+        for metric in ("precision_at_k", "recall_at_k")
+    }
+    iteration_summary = []
+    for iteration in range(iterations):
+        iteration_summary.append(
+            {
+                "iteration": iteration + 1,
+                **{
+                    metric: summarize(
+                        [report["fre_iterations"][iteration][metric] for report in reports]
+                    )
+                    for metric in ("precision_at_k", "recall_at_k")
+                },
+            }
+        )
+    protocol = dict(reports[0]["protocol"])
+    protocol.pop("seed")
+    protocol["seeds"] = seeds
+    return {
+        "protocol": protocol,
+        "runs": reports,
+        "mean_and_std_across_seeds": {
+            "baseline": baseline_summary,
+            "fre_iterations": iteration_summary,
+        },
+    }
+
+
 def main() -> None:
     project_root = Path(__file__).resolve().parent.parent
     parser = argparse.ArgumentParser(
@@ -154,19 +217,31 @@ def main() -> None:
     )
     parser.add_argument("--iterations", type=int, default=3, help="Nombre d'itérations FRE.")
     parser.add_argument("--seed", type=int, default=42, help="Graine du tirage des requêtes.")
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        help="Répéter l'évaluation avec plusieurs graines et agréger les métriques.",
+    )
     arguments = parser.parse_args()
 
     try:
         index = load_index(arguments.index)
-        report = evaluate_fre(
-            index,
-            query_count=arguments.queries,
-            top_k=arguments.top_k,
-            feedback_pool=arguments.feedback_pool,
-            feedback_count=arguments.feedback_count,
-            iterations=arguments.iterations,
-            seed=arguments.seed,
-        )
+        evaluation_parameters = {
+            "query_count": arguments.queries,
+            "top_k": arguments.top_k,
+            "feedback_pool": arguments.feedback_pool,
+            "feedback_count": arguments.feedback_count,
+            "iterations": arguments.iterations,
+        }
+        if arguments.seeds is None:
+            report = evaluate_fre(index, seed=arguments.seed, **evaluation_parameters)
+        else:
+            report = evaluate_multiple_seeds(
+                index,
+                seeds=arguments.seeds,
+                **evaluation_parameters,
+            )
     except (FileNotFoundError, ValueError) as error:
         parser.error(str(error))
     print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False))
