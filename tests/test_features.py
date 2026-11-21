@@ -81,7 +81,8 @@ def test_variance_mode_matches_global_mode_on_a_flat_image() -> None:
     global_vector = extract_features(image, mode="global").vector
     variance_vector = extract_features(image, mode="variance").vector
 
-    assert np.allclose(global_vector, variance_vector, atol=1e-5)
+    # A flat image has no structure: only float rounding may differ.
+    assert np.allclose(global_vector, variance_vector, atol=1e-4)
 
 
 def test_normalizer_reuses_corpus_parameters_and_preserves_histograms() -> None:

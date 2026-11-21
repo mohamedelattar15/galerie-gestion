@@ -156,11 +156,12 @@ def _color_moments(
     centered = values - means
     standard_deviations = np.sqrt(np.mean(centered**2, axis=(0, 1)))
     third_moments = np.mean(centered**3, axis=(0, 1))
-    skewness = np.divide(
-        third_moments,
-        standard_deviations**3,
-        out=np.zeros_like(third_moments),
-        where=standard_deviations > 1e-12,
+    # A perfectly flat image has no measurable dispersion; report zero skewness
+    # instead of amplifying float rounding to 1.0.
+    skewness = np.where(
+        standard_deviations > 1e-4,
+        third_moments / np.where(standard_deviations > 1e-4, standard_deviations, 1.0) ** 3,
+        0.0,
     )
     return np.concatenate((means, standard_deviations, skewness)).astype(np.float32)
 
