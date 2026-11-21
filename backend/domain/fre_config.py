@@ -17,6 +17,11 @@ DEFAULT_MINIMUM_RELEVANT = 2
 # Interface default: how many results are displayed and judged.
 DEFAULT_TOP_K = 10
 
+# Background handling for descriptor extraction.
+DEFAULT_DESCRIPTOR_MODE = "global"
+DEFAULT_SEPARABILITY_THRESHOLD = 1.2
+DEFAULT_BLOCK_GRID = 4
+
 
 @dataclass(frozen=True)
 class FreSettings:

@@ -10,6 +10,11 @@ from numpy.typing import NDArray
 from PIL import Image
 
 from backend.domain.features import FEATURE_DIMENSION, extract_features
+from backend.domain.fre_config import (
+    DEFAULT_BLOCK_GRID,
+    DEFAULT_DESCRIPTOR_MODE,
+    DEFAULT_SEPARABILITY_THRESHOLD,
+)
 from backend.domain.models import DatasetIndex
 from backend.domain.normalization import FeatureNormalizer
 
@@ -26,8 +31,16 @@ def _image_files(dataset_dir: Path) -> list[Path]:
     )
 
 
-def build_index(dataset_dir: Path, output_path: Path) -> DatasetIndex:
-    """Extract all supported images and write a compressed NumPy index."""
+def build_index(
+    dataset_dir: Path,
+    output_path: Path,
+    descriptor_mode: str = DEFAULT_DESCRIPTOR_MODE,
+) -> DatasetIndex:
+    """Extract all supported images and write a compressed NumPy index.
+
+    ``descriptor_mode`` selects how the background is handled; ``"global"``
+    reproduces the historical behaviour and is the default.
+    """
     root = dataset_dir.resolve()
     image_paths = _image_files(root)
     if not image_paths:
@@ -38,7 +51,12 @@ def build_index(dataset_dir: Path, output_path: Path) -> DatasetIndex:
     labels: list[str] = []
     for path in image_paths:
         with Image.open(path) as image:
-            descriptor = extract_features(image)
+            descriptor = extract_features(
+                image,
+                mode=descriptor_mode,
+                separability_threshold=DEFAULT_SEPARABILITY_THRESHOLD,
+                block_grid=DEFAULT_BLOCK_GRID,
+            )
         raw_vectors.append(descriptor.vector)
         relative_path = path.relative_to(root)
         relative_paths.append(relative_path.as_posix())
@@ -61,6 +79,7 @@ def build_index(dataset_dir: Path, output_path: Path) -> DatasetIndex:
                 vectors=normalized_matrix,
                 mean=normalizer.mean,
                 scale=normalizer.scale,
+                descriptor_mode=np.asarray(descriptor_mode, dtype=np.str_),
             )
         temporary_path.replace(output_path)
     finally:
@@ -111,9 +130,16 @@ def main() -> None:
         default=project_root / "instance" / "features.npz",
         help="Chemin du fichier d'index compressé.",
     )
+    parser.add_argument(
+        "--mode",
+        choices=("global", "variance", "adaptive"),
+        default=DEFAULT_DESCRIPTOR_MODE,
+        help="Traitement du fond : global, variance ou adaptatif.",
+    )
     arguments = parser.parse_args()
-    index = build_index(arguments.dataset, arguments.output)
+    index = build_index(arguments.dataset, arguments.output, descriptor_mode=arguments.mode)
     print(f"Index créé : {len(index.paths)} images, {FEATURE_DIMENSION} dimensions.")
+    print(f"Mode des descripteurs : {arguments.mode}")
     print(f"Fichier : {arguments.output}")
 
 
