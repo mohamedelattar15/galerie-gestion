@@ -13,6 +13,7 @@ from PIL import Image, UnidentifiedImageError
 from backend.database.repositories.gallery import get_owned_image
 from backend.domain.features import extract_features
 from backend.domain.models import DatasetIndex
+from backend.domain.retrieval import index_fingerprint
 from backend.routes.auth import current_user_id, login_required
 from backend.services.search import (
     SearchServiceError,
@@ -26,11 +27,26 @@ DEFAULT_TOP_K = 10
 MAX_TOP_K = 100
 
 
-def _get_index() -> DatasetIndex | None:
-    index = current_app.extensions["cbir_index"]
+def _get_index(mode: str = "global") -> DatasetIndex | None:
+    variants = current_app.extensions.get("cbir_indexes") or {}
+    index = variants.get(mode)
+    if index is None:
+        index = current_app.extensions["cbir_index"]
     if index is not None and not isinstance(index, DatasetIndex):
         raise RuntimeError("L'index configuré a un type inattendu.")
     return index
+
+
+def _available_modes() -> list[str]:
+    variants = current_app.extensions.get("cbir_indexes") or {}
+    return [mode for mode in ("global", "variance", "adaptive") if mode in variants]
+
+
+def _fingerprint_for(index: DatasetIndex, mode: str) -> str:
+    fingerprints = current_app.extensions.setdefault("cbir_index_fingerprints", {})
+    if mode not in fingerprints:
+        fingerprints[mode] = index_fingerprint(index)
+    return fingerprints[mode]
 
 
 def _parse_top_k(value: Any) -> int:
@@ -63,7 +79,10 @@ class SearchResource(Resource):
     method_decorators = [login_required]
 
     def post(self) -> tuple[dict[str, Any], int]:
-        index = _get_index()
+        requested_mode = request.form.get("descriptor_mode", "global")
+        if requested_mode not in _available_modes():
+            requested_mode = "global"
+        index = _get_index(requested_mode)
         if index is None:
             return {
                 "error": "Aucun index n'est chargé. Construisez-le avec python -m backend.services.indexing."
@@ -129,7 +148,7 @@ class SearchResource(Resource):
                 }, 400
             try:
                 image, _image_format = load_uploaded_image(query_upload)
-                raw_vector = extract_features(image).vector
+                raw_vector = extract_features(image, mode=requested_mode).vector
                 query_vector = index.normalizer.transform(raw_vector)
             except ValueError as error:
                 return {"error": str(error)}, 400
@@ -141,20 +160,20 @@ class SearchResource(Resource):
         user_id = current_user_id()
         if user_id is None:
             return {"error": "Authentification requise."}, 401
-        index_fingerprint = current_app.extensions["cbir_index_fingerprint"]
-        if not isinstance(index_fingerprint, str):
-            raise RuntimeError("L'empreinte de l'index de recherche est invalide.")
+        current_fingerprint = _fingerprint_for(index, requested_mode)
         session_id, result_ids, distances = start_search(
             index,
             query_vector,
             top_k,
             user_id,
-            index_fingerprint,
+            current_fingerprint,
             excluded_id=excluded_id,
         )
         return {
             "session_id": session_id,
             "iteration": 0,
+            "descriptor_mode": requested_mode,
+            "available_modes": _available_modes(),
             "query_source": query_source,
             "corpus": {
                 "name": "GHIM-10K",
@@ -191,10 +210,13 @@ class FeedbackResource(Resource):
     method_decorators = [login_required]
 
     def post(self) -> tuple[dict[str, Any], int]:
-        index = _get_index()
+        payload = request.get_json(silent=True)
+        requested_mode = payload.get("descriptor_mode") if isinstance(payload, dict) else None
+        if not isinstance(requested_mode, str) or requested_mode not in _available_modes():
+            requested_mode = "global"
+        index = _get_index(requested_mode)
         if index is None:
             return {"error": "Aucun index de recherche n'est chargé."}, 503
-        payload = request.get_json(silent=True)
         if not isinstance(payload, dict):
             return {"error": "Le corps de la requête doit être un objet JSON."}, 400
 
@@ -204,11 +226,9 @@ class FeedbackResource(Resource):
         user_id = current_user_id()
         if user_id is None:
             return {"error": "Authentification requise."}, 401
-        index_fingerprint = current_app.extensions["cbir_index_fingerprint"]
-        if not isinstance(index_fingerprint, str):
-            raise RuntimeError("L'empreinte de l'index de recherche est invalide.")
+        current_fingerprint = _fingerprint_for(index, requested_mode)
         try:
-            session = load_feedback_session(session_id, user_id, index_fingerprint)
+            session = load_feedback_session(session_id, user_id, current_fingerprint)
         except SearchServiceError as error:
             return {"error": str(error)}, error.status_code
 
@@ -242,6 +262,7 @@ class FeedbackResource(Resource):
         return {
             "session_id": session_id,
             "iteration": session.iteration,
+            "descriptor_mode": requested_mode,
             "ignored_non_relevant_count": len(non_relevant_ids),
             "weights": session.weights.tolist(),
             "results": _result_payload(index, session.result_ids, distances),

@@ -18,6 +18,9 @@ GLCM_LEVELS = 16
 LBP_BINS = 256
 MAX_IMAGE_SIDE = 256
 DESCRIPTOR_MODES = ("global", "variance", "adaptive")
+SALIENT_MIN_SATURATION = 0.55
+SALIENT_MIN_FRACTION = 0.01
+SALIENT_HUE_BINS = 16
 
 COLOR_HISTOGRAM_SLICE = slice(0, 3 * COLOR_HISTOGRAM_BINS)
 COLOR_MOMENTS_SLICE = slice(COLOR_HISTOGRAM_SLICE.stop, COLOR_HISTOGRAM_SLICE.stop + 9)
@@ -37,6 +40,7 @@ class ImageDescriptor:
     dominant_colors: np.ndarray
     glcm: np.ndarray
     lbp_histogram: np.ndarray
+    salient_color: np.ndarray | None = None
 
     @property
     def vector(self) -> np.ndarray:
@@ -51,13 +55,16 @@ class ImageDescriptor:
         ).astype(np.float32, copy=False)
 
     def to_dict(self) -> dict[str, list[float]]:
-        return {
+        payload: dict[str, list[float]] = {
             "color_histogram": self.color_histogram.tolist(),
             "color_moments": self.color_moments.tolist(),
             "dominant_colors": self.dominant_colors.tolist(),
             "glcm": self.glcm.tolist(),
             "lbp_histogram": self.lbp_histogram.tolist(),
         }
+        if self.salient_color is not None:
+            payload["salient_color"] = self.salient_color.tolist()
+        return payload
 
 
 def _prepare_image(image: Image.Image) -> Image.Image:
@@ -166,6 +173,48 @@ def _dominant_colors(rgb_image: Image.Image) -> np.ndarray:
         values.extend(float(component) / 255.0 for component in palette[start : start + 3])
         proportions.append(float(counts[label]) / total if label is not None else 0.0)
     return np.asarray(values + proportions, dtype=np.float32)
+
+
+def _salient_color(rgb_image: Image.Image) -> np.ndarray | None:
+    """Return the most saturated colour cluster and its proportion.
+
+    Dominant colours are chosen by surface, so a small but vivid subject (a red
+    helicopter on a blue sky) is never reported. This helper looks for the
+    opposite: the colour that stands out the most, whatever its area.
+
+    The result is ``[r, g, b, proportion]`` in the 0..1 range, or ``None`` when
+    the image has no clearly saturated region.
+    """
+    hsv = np.asarray(rgb_image.convert("HSV"), dtype=np.uint8)
+    saturation = hsv[:, :, 1].astype(np.float32) / 255.0
+    saturated = saturation >= SALIENT_MIN_SATURATION
+    if float(saturated.mean()) < SALIENT_MIN_FRACTION:
+        return None
+
+    hue = hsv[:, :, 0][saturated]
+    weights = saturation[saturated]
+    histogram = np.bincount(
+        hue // (256 // SALIENT_HUE_BINS),
+        weights=weights,
+        minlength=SALIENT_HUE_BINS,
+    )
+    peak = int(histogram.argmax())
+    if histogram[peak] <= 0:
+        return None
+
+    lower = peak * (256 // SALIENT_HUE_BINS)
+    upper = lower + (256 // SALIENT_HUE_BINS)
+    hue_selected = (hue >= lower) & (hue < upper)
+    if not hue_selected.any():
+        return None
+
+    rgb = np.asarray(rgb_image, dtype=np.float32) / 255.0
+    selected_pixels = rgb[saturated][hue_selected]
+    mean_color = selected_pixels.mean(axis=0)
+    proportion = float(hue_selected.sum()) / float(saturated.sum())
+    return np.concatenate((mean_color, np.asarray([proportion], dtype=np.float32))).astype(
+        np.float32
+    )
 
 
 def _glcm_properties(rgb_image: Image.Image) -> np.ndarray:
@@ -297,6 +346,7 @@ def extract_features(
         dominant_colors=_dominant_colors(rgb_image),
         glcm=_glcm_properties(rgb_image),
         lbp_histogram=_lbp_histogram(rgb_image, mask),
+        salient_color=_salient_color(rgb_image),
     )
     if descriptor.vector.shape != (FEATURE_DIMENSION,):
         raise RuntimeError("L'extracteur a produit un vecteur de dimension inattendue.")

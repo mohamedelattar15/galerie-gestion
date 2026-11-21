@@ -74,3 +74,29 @@ def test_variance_mode_downweights_a_uniform_background() -> None:
 
     assert variance_descriptor.vector.shape == global_descriptor.vector.shape
     assert variance_descriptor.vector.tolist() != global_descriptor.vector.tolist()
+
+def test_salient_colour_finds_a_small_vivid_subject() -> None:
+    image = Image.new("RGB", (40, 40), (110, 120, 145))
+    image.paste(Image.new("RGB", (6, 6), (200, 20, 30)), (17, 17))
+
+    descriptor = extract_features(image)
+
+    assert descriptor.salient_color is not None
+    red, green, blue, proportion = descriptor.salient_color.tolist()
+    assert red > 0.6 and green < 0.3 and blue < 0.3
+    assert proportion == pytest.approx(1.0)
+
+
+def test_salient_colour_is_absent_on_a_grey_image() -> None:
+    descriptor = extract_features(Image.new("RGB", (24, 24), (128, 128, 128)))
+
+    assert descriptor.salient_color is None
+
+
+def test_salient_colour_does_not_change_the_vector() -> None:
+    image = Image.new("RGB", (20, 20), (30, 140, 90))
+
+    descriptor = extract_features(image)
+
+    assert descriptor.vector.shape == (FEATURE_DIMENSION,)
+    assert "salient_color" in descriptor.to_dict()

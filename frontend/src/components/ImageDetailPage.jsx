@@ -280,6 +280,30 @@ function DescriptorView({ descriptors }) {
           })}
         </div>
       </section>
+
+      {descriptors.salient_color && (
+        <section>
+          <h3>Couleur la plus saturée</h3>
+          <p className="hint">
+            Les dominantes privilégient la surface : un détail vif minoritaire y échappe.
+            Cette couleur signale la teinte la plus saturée de l’image.
+          </p>
+          <div className="dominant-colors">
+            {(() => {
+              const values = descriptors.salient_color;
+              const rgb = values.slice(0, 3);
+              const color = `rgb(${rgb.map((value) => Math.round(value * 255)).join(" ")})`;
+              return (
+                <div className="dominant-color">
+                  <span aria-hidden="true" className="swatch" style={{ background: color }} />
+                  <span>{color}</span>
+                  <strong>{Math.round(values[3] * 100)} %</strong>
+                </div>
+              );
+            })()}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

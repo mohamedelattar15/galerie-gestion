@@ -19,4 +19,7 @@ class HealthResource(Resource):
             "status": "ok",
             "index_loaded": index is not None,
             "indexed_images": len(index.paths) if index is not None else 0,
+            "descriptor_modes": list(
+                (current_app.extensions.get("cbir_indexes") or {}).keys()
+            ),
         }, 200

@@ -57,7 +57,12 @@ def test_health_and_batch_descriptor_extraction(tmp_path: Path) -> None:
 
     health = client.get("/health")
     assert health.status_code == 200
-    assert health.json == {"status": "ok", "index_loaded": False, "indexed_images": 0}
+    assert health.json == {
+        "status": "ok",
+        "index_loaded": False,
+        "indexed_images": 0,
+        "descriptor_modes": [],
+    }
 
     response = client.post(
         "/api/features/extract",

@@ -12,6 +12,7 @@ from flask_restful import Api
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from backend.database.connection import init_db
+from backend.domain.models import DatasetIndex
 from backend.domain.retrieval import index_fingerprint
 from backend.routes.auth import auth_api
 from backend.routes.features import DescriptorResource
@@ -22,6 +23,29 @@ from backend.services.indexing import load_index
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 INSTANCE_DIR = PROJECT_ROOT / "instance"
+
+INDEX_VARIANTS = {
+    "global": "features.npz",
+    "variance": "features_variance.npz",
+    "adaptive": "features_adaptive.npz",
+}
+DEFAULT_DESCRIPTOR_MODE = "global"
+
+
+def _load_index_variants(primary: Path) -> dict[str, DatasetIndex]:
+    """Load every available descriptor variant, keyed by mode name.
+
+    The primary path always provides the ``global`` variant. The other modes
+    are optional: they are exposed only when their index file exists.
+    """
+    variants: dict[str, DatasetIndex] = {}
+    candidates = dict(INDEX_VARIANTS)
+    candidates["global"] = primary.name
+    for mode, filename in candidates.items():
+        candidate = primary if mode == "global" else primary.with_name(filename)
+        if candidate.is_file():
+            variants[mode] = load_index(candidate)
+    return variants
 
 
 def create_app(
@@ -67,8 +91,9 @@ def create_app(
             INSTANCE_DIR / "features.npz",
         )
     )
-    app.extensions["cbir_index"] = (
-        load_index(configured_index) if configured_index.is_file() else None
+    app.extensions["cbir_indexes"] = _load_index_variants(configured_index)
+    app.extensions["cbir_index"] = app.extensions["cbir_indexes"].get(
+        DEFAULT_DESCRIPTOR_MODE
     )
     app.extensions["cbir_index_fingerprint"] = (
         index_fingerprint(app.extensions["cbir_index"])

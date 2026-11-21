@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import Dropzone from "./Dropzone.jsx";
 
+const MODE_LABELS = {
+  global: "Global (référence)",
+  variance: "Pondération par variance",
+  adaptive: "Adaptatif (segmentation)",
+};
+
 export default function SearchPanel({ galleryImage, onClearGalleryImage, showStatus }) {
   const [queryFile, setQueryFile] = useState(null);
   const [queryPreview, setQueryPreview] = useState(null);
@@ -14,6 +20,8 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
   const [feedback, setFeedback] = useState({});
   const [loading, setLoading] = useState(false);
   const [corpus, setCorpus] = useState(null);
+  const [mode, setMode] = useState("global");
+  const [availableModes, setAvailableModes] = useState(["global"]);
 
   const galleryQuery = galleryImage?.id ?? null;
 
@@ -36,6 +44,15 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
     return () => URL.revokeObjectURL(url);
   }, [queryFile]);
 
+  useEffect(() => {
+    api("/health")
+      .then((result) => {
+        const modes = result?.descriptor_modes ?? [];
+        if (modes.length > 0) setAvailableModes(modes);
+      })
+      .catch(() => setAvailableModes(["global"]));
+  }, []);
+
   function reset() {
     setQueryFile(null);
     setSessionId(null);
@@ -53,6 +70,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
     if (galleryQuery) formData.append("gallery_image_id", String(galleryQuery));
     else formData.append("query", queryFile);
     formData.append("top_k", String(topK));
+    formData.append("descriptor_mode", mode);
     setLoading(true);
     try {
       const result = await api("/api/search", { method: "POST", body: formData });
@@ -87,6 +105,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
           relevant_ids: relevantIds,
           non_relevant_ids: nonRelevantIds,
           top_k: Number(topK),
+            descriptor_mode: mode,
         }),
       });
       setIteration(result.iteration);
@@ -166,6 +185,19 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
               value={topK}
             />
           </label>
+
+          {availableModes.length > 1 && (
+            <label>
+              Traitement du fond
+              <select onChange={(event) => setMode(event.target.value)} value={mode}>
+                {availableModes.map((name) => (
+                  <option key={name} value={name}>
+                    {MODE_LABELS[name] ?? name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <button
             className="button button-primary"
