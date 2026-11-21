@@ -12,6 +12,7 @@ from PIL import Image
 from backend.domain.features import FEATURE_DIMENSION, extract_features
 from backend.domain.models import DatasetIndex
 from backend.domain.normalization import FeatureNormalizer
+from backend.domain.segmentation import descriptor_mode as descriptor_mode_for
 
 SUPPORTED_EXTENSIONS = {".bmp", ".jpeg", ".jpg", ".png", ".webp"}
 
@@ -26,8 +27,16 @@ def _image_files(dataset_dir: Path) -> list[Path]:
     )
 
 
-def build_index(dataset_dir: Path, output_path: Path) -> DatasetIndex:
-    """Extract all supported images and write a compressed NumPy index."""
+def build_index(
+    dataset_dir: Path,
+    output_path: Path,
+    descriptor_mode: str = "global",
+) -> DatasetIndex:
+    """Extract all supported images and write a compressed NumPy index.
+
+    ``descriptor_mode`` is forwarded to ``extract_features`` and recorded in
+    the index file, so an index can never be mistaken for another variant.
+    """
     root = dataset_dir.resolve()
     image_paths = _image_files(root)
     if not image_paths:
@@ -36,9 +45,12 @@ def build_index(dataset_dir: Path, output_path: Path) -> DatasetIndex:
     raw_vectors: list[NDArray[np.float32]] = []
     relative_paths: list[str] = []
     labels: list[str] = []
+    segmented = 0
     for path in image_paths:
         with Image.open(path) as image:
-            descriptor = extract_features(image)
+            descriptor = extract_features(image, mode=descriptor_mode)
+            if descriptor_mode == "adaptive" and descriptor_mode_for(image) == "segmented":
+                segmented += 1
         raw_vectors.append(descriptor.vector)
         relative_path = path.relative_to(root)
         relative_paths.append(relative_path.as_posix())
@@ -61,11 +73,15 @@ def build_index(dataset_dir: Path, output_path: Path) -> DatasetIndex:
                 vectors=normalized_matrix,
                 mean=normalizer.mean,
                 scale=normalizer.scale,
+                descriptor_mode=np.asarray(descriptor_mode),
             )
         temporary_path.replace(output_path)
     finally:
         if temporary_path.exists():
             temporary_path.unlink()
+
+    if descriptor_mode == "adaptive":
+        print(f"Mode adaptatif : {segmented}/{len(relative_paths)} images segmentées.")
 
     return DatasetIndex(
         paths=tuple(relative_paths),
@@ -111,9 +127,19 @@ def main() -> None:
         default=project_root / "instance" / "features.npz",
         help="Chemin du fichier d'index compressé.",
     )
+    parser.add_argument(
+        "--mode",
+        choices=("global", "variance", "segmented", "adaptive"),
+        default="global",
+        help=(
+            "Traitement du fond : global (défaut), variance (pondération des blocs), "
+            "segmented (masque d'objet) ou adaptive (décision par image)."
+        ),
+    )
     arguments = parser.parse_args()
-    index = build_index(arguments.dataset, arguments.output)
+    index = build_index(arguments.dataset, arguments.output, descriptor_mode=arguments.mode)
     print(f"Index créé : {len(index.paths)} images, {FEATURE_DIMENSION} dimensions.")
+    print(f"Mode de descripteurs : {arguments.mode}")
     print(f"Fichier : {arguments.output}")
 
 
