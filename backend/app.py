@@ -86,6 +86,7 @@ def create_app(
     init_db(app)
     app.register_blueprint(auth_api)
     app.register_blueprint(gallery_api)
+    app.register_blueprint(batch_api)
     configured_index = index_path or Path(
         os.environ.get(
             "CBIR_INDEX_PATH",

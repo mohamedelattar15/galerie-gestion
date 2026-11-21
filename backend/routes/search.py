@@ -125,7 +125,7 @@ class SearchResource(Resource):
                 return {"error": "L'image de galerie n'existe pas."}, 404
             try:
                 query_vector = _vector_from_stored_image(
-                    index, Path(str(row["stored_name"]))
+                    index, Path(str(row["stored_name"])), requested_mode
                 )
             except ValueError as error:
                 return {"error": str(error)}, 400
@@ -187,6 +187,7 @@ class SearchResource(Resource):
 def _vector_from_stored_image(
     index: DatasetIndex,
     stored_name: Path,
+    descriptor_mode: str = "global",
 ) -> np.ndarray:
     """Extract and normalize the descriptor vector of a stored gallery image."""
     from backend.routes.gallery import _image_storage  # local to avoid a cycle
@@ -200,7 +201,7 @@ def _vector_from_stored_image(
             if opened_image.width * opened_image.height > MAX_IMAGE_PIXELS:
                 raise ValueError("L'image dépasse la taille maximale autorisée.")
             opened_image.load()
-            raw_vector = extract_features(opened_image).vector
+            raw_vector = extract_features(opened_image, mode=descriptor_mode).vector
     except (UnidentifiedImageError, Image.DecompressionBombError, OSError) as error:
         raise ValueError("Le fichier image stocké est illisible.") from error
     return index.normalizer.transform(raw_vector)
