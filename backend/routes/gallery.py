@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -51,6 +52,60 @@ def _remove_stored_file(stored_name: str | None) -> None:
         stored_image_path(_image_storage(), stored_name).unlink(missing_ok=True)
     except (OSError, ValueError):
         current_app.logger.warning("Could not remove stored file %s.", stored_name)
+
+
+def _derived_filename(
+    source: sqlite3.Row,
+    image_id: int,
+    operation: Any,
+    payload: dict[str, Any],
+) -> str:
+    """Name a derived image after its original, never after another copy.
+
+    Chaining transformations used to stack suffixes
+    (``photo_resize_rotate_rotate.png``). The stem is taken from the root
+    original and the operation is described once, with its parameters.
+    """
+    root_name = image_id
+    root_stem: str | None = None
+    current = source
+    for _ in range(64):
+        parent_id = current["parent_image_id"]
+        if parent_id is None:
+            root_stem = Path(str(current["original_filename"])).stem
+            root_name = int(current["id"])
+            break
+        parent = get_owned_image(int(parent_id), int(current["user_id"]))
+        if parent is None:
+            root_stem = Path(str(current["original_filename"])).stem
+            root_name = int(current["id"])
+            break
+        current = parent
+
+    if root_stem is None:
+        root_stem = Path(str(source["original_filename"])).stem
+        root_name = image_id
+
+    operation_name = str(operation)
+    if operation_name == "rotate":
+        operation_name = f"rotate{payload.get('degrees', 90)}"
+    elif operation_name == "flip":
+        operation_name = f"flip_{payload.get('direction', 'horizontal')}"
+    elif operation_name == "resize":
+        operation_name = f"resize_{payload.get('width')}x{payload.get('height')}"
+    elif operation_name == "crop":
+        box = payload.get("box")
+        if isinstance(box, list) and len(box) == 4:
+            operation_name = "crop_" + "_".join(str(value) for value in box)
+
+    base_stem = re.sub(
+        r"(_rotate\d*|_flip_[a-z]+|_resize(_\d+x\d+)?|_crop_[-\d_]+)+$",
+        "",
+        root_stem,
+    )
+    if not base_stem:
+        base_stem = f"image_{root_name}"
+    return secure_filename(f"{base_stem}_{operation_name}.png") or "image_derived.png"
 
 
 def _owned_image(image_id: int) -> sqlite3.Row | None:
@@ -367,9 +422,7 @@ def transform_image(image_id: int) -> tuple[Any, int]:
         return jsonify({"error": str(error)}), 400
 
     stored_name = store_derived_image(transformed, _image_storage())
-    stem = Path(str(source["original_filename"])).stem
-    operation_name = str(operation)
-    original_filename = secure_filename(f"{stem}_{operation_name}.png") or "image_derived.png"
+    original_filename = _derived_filename(source, image_id, operation, payload)
     try:
         derived_id = insert_image(
             user_id=int(source["user_id"]),

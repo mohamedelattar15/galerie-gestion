@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 import Dropzone from "./Dropzone.jsx";
 
-export default function SearchPanel({ showStatus }) {
+export default function SearchPanel({ galleryImage, onClearGalleryImage, showStatus }) {
   const [queryFile, setQueryFile] = useState(null);
   const [queryPreview, setQueryPreview] = useState(null);
   const [topK, setTopK] = useState(10);
@@ -13,6 +13,9 @@ export default function SearchPanel({ showStatus }) {
   const [results, setResults] = useState([]);
   const [feedback, setFeedback] = useState({});
   const [loading, setLoading] = useState(false);
+  const [corpus, setCorpus] = useState(null);
+
+  const galleryQuery = galleryImage?.id ?? null;
 
   const relevantCount = useMemo(
     () => Object.values(feedback).filter((value) => value === "relevant").length,
@@ -39,13 +42,16 @@ export default function SearchPanel({ showStatus }) {
     setResults([]);
     setFeedback({});
     setIteration(0);
+    setCorpus(null);
+    onClearGalleryImage?.();
   }
 
   async function search(event) {
     event.preventDefault();
-    if (!queryFile) return;
+    if (!queryFile && !galleryQuery) return;
     const formData = new FormData();
-    formData.append("query", queryFile);
+    if (galleryQuery) formData.append("gallery_image_id", String(galleryQuery));
+    else formData.append("query", queryFile);
     formData.append("top_k", String(topK));
     setLoading(true);
     try {
@@ -54,6 +60,7 @@ export default function SearchPanel({ showStatus }) {
       setIteration(0);
       setResults(result.results);
       setFeedback({});
+      setCorpus(result.corpus ?? null);
       showStatus(`${result.results.length} résultat(s) affiché(s).`);
     } catch (error) {
       showStatus(error.message, true);
@@ -116,34 +123,55 @@ export default function SearchPanel({ showStatus }) {
         </div>
 
         <form className="stack" onSubmit={search}>
-          <Dropzone
-            compact={Boolean(queryPreview)}
-            hint="Glissez-déposez ou cliquez"
-            label="Choisir une image"
-            onFiles={(files) => setQueryFile(files[0])}
-          >
-            {queryPreview && (
-              <div className="query-preview">
-                <img alt="Aperçu de l’image requête" src={queryPreview} />
-                <span>{queryFile.name}</span>
+          {galleryImage ? (
+            <div className="gallery-query">
+              <img alt={galleryImage.filename} src={galleryImage.file_url} />
+              <div>
+                <strong>{galleryImage.filename}</strong>
+                <span className="hint">Image de votre galerie</span>
               </div>
-            )}
-          </Dropzone>
+              <button
+                aria-label="Retirer l’image de la galerie"
+                className="inspector-close"
+                onClick={onClearGalleryImage}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <Dropzone
+              compact={Boolean(queryPreview)}
+              hint="Glissez-déposez ou cliquez"
+              label="Choisir une image"
+              onFiles={(files) => setQueryFile(files[0])}
+            >
+              {queryPreview && (
+                <div className="query-preview">
+                  <img alt="Aperçu de l’image requête" src={queryPreview} />
+                  <span>{queryFile.name}</span>
+                </div>
+              )}
+            </Dropzone>
+          )}
 
           <label>
-            <span className="field-row-label">
-              Nombre de résultats <b>{topK}</b>
-            </span>
+            Nombre de résultats
             <input
               max={100}
               min={1}
               onChange={(event) => setTopK(event.target.value)}
-              type="range"
+              required
+              type="number"
               value={topK}
             />
           </label>
 
-          <button className="button button-primary" disabled={loading || !queryFile} type="submit">
+          <button
+            className="button button-primary"
+            disabled={loading || (!queryFile && !galleryQuery)}
+            type="submit"
+          >
             <Sparkles size={16} />
             {loading && iteration === 0 ? "Recherche…" : "Rechercher"}
           </button>
@@ -155,8 +183,13 @@ export default function SearchPanel({ showStatus }) {
         </form>
 
         <p className="hint">
-          Recherche sur l’index GHIM-10K pré-calculé. Marquez au moins deux images pertinentes
-          pour appliquer FRE. Les sessions expirent au redémarrage du serveur.
+          <strong>Catalogue de recherche : GHIM-10K</strong>
+          {corpus
+            ? ` · ${corpus.images.toLocaleString("fr-FR")} images · ${corpus.categories} catégories`
+            : " · 10 000 images · 20 catégories"}
+          <br />
+          Vos images de galerie servent de requête; les résultats proviennent du catalogue.
+          Marquez au moins deux images pertinentes pour appliquer FRE.
         </p>
       </aside>
 

@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 from flask import current_app, request
 from flask_restful import Resource
+from PIL import Image, UnidentifiedImageError
 
-from backend.domain.models import DatasetIndex
+from backend.database.repositories.gallery import get_owned_image
 from backend.domain.features import extract_features
+from backend.domain.models import DatasetIndex
 from backend.routes.auth import current_user_id, login_required
 from backend.services.search import (
     SearchServiceError,
@@ -72,7 +75,9 @@ class SearchResource(Resource):
             return {"error": str(error)}, 400
 
         query_id_value = request.form.get("query_image_id")
+        gallery_image_id = request.form.get("gallery_image_id")
         excluded_id: int | None = None
+        query_source: dict[str, Any] | None = None
         if query_id_value is not None:
             try:
                 excluded_id = int(query_id_value)
@@ -81,13 +86,46 @@ class SearchResource(Resource):
             if not 0 <= excluded_id < len(index.paths):
                 return {"error": "query_image_id ne correspond à aucune image indexée."}, 404
             query_vector = index.vectors[excluded_id]
+            query_source = {
+                "type": "index",
+                "id": excluded_id,
+                "path": index.paths[excluded_id],
+                "category": index.labels[excluded_id],
+                "file_url": f"/api/indexed-images/{excluded_id}/file",
+            }
+        elif gallery_image_id is not None:
+            user_id = current_user_id()
+            if user_id is None:
+                return {"error": "Authentification requise."}, 401
+            try:
+                gallery_id = int(gallery_image_id)
+            except ValueError:
+                return {"error": "gallery_image_id doit être un nombre entier."}, 400
+            row = get_owned_image(gallery_id, user_id)
+            if row is None:
+                return {"error": "L'image de galerie n'existe pas."}, 404
+            try:
+                query_vector = _vector_from_stored_image(
+                    index, Path(str(row["stored_name"]))
+                )
+            except ValueError as error:
+                return {"error": str(error)}, 400
+            query_source = {
+                "type": "gallery",
+                "id": gallery_id,
+                "filename": str(row["original_filename"]),
+                "file_url": f"/api/images/{gallery_id}/file",
+            }
         else:
             query_upload = request.files.get("query")
             if query_upload is None:
                 query_upload = request.files.get("image")
             if query_upload is None:
                 return {
-                    "error": "Envoyez une image dans le champ 'query' ou un 'query_image_id'."
+                    "error": (
+                        "Envoyez une image dans le champ 'query', un 'query_image_id' "
+                        "ou un 'gallery_image_id'."
+                    )
                 }, 400
             try:
                 image, _image_format = load_uploaded_image(query_upload)
@@ -95,6 +133,10 @@ class SearchResource(Resource):
                 query_vector = index.normalizer.transform(raw_vector)
             except ValueError as error:
                 return {"error": str(error)}, 400
+            query_source = {
+                "type": "upload",
+                "filename": query_upload.filename,
+            }
 
         user_id = current_user_id()
         if user_id is None:
@@ -113,8 +155,36 @@ class SearchResource(Resource):
         return {
             "session_id": session_id,
             "iteration": 0,
+            "query_source": query_source,
+            "corpus": {
+                "name": "GHIM-10K",
+                "images": len(index.paths),
+                "categories": len(set(index.labels)),
+            },
             "results": _result_payload(index, result_ids, distances),
         }, 200
+
+
+def _vector_from_stored_image(
+    index: DatasetIndex,
+    stored_name: Path,
+) -> np.ndarray:
+    """Extract and normalize the descriptor vector of a stored gallery image."""
+    from backend.routes.gallery import _image_storage  # local to avoid a cycle
+    from backend.utils.image_io import MAX_IMAGE_PIXELS, stored_image_path
+
+    image_path = stored_image_path(_image_storage(), stored_name.name)
+    if not image_path.is_file():
+        raise ValueError("Le fichier image associé est introuvable.")
+    try:
+        with Image.open(image_path) as opened_image:
+            if opened_image.width * opened_image.height > MAX_IMAGE_PIXELS:
+                raise ValueError("L'image dépasse la taille maximale autorisée.")
+            opened_image.load()
+            raw_vector = extract_features(opened_image).vector
+    except (UnidentifiedImageError, Image.DecompressionBombError, OSError) as error:
+        raise ValueError("Le fichier image stocké est illisible.") from error
+    return index.normalizer.transform(raw_vector)
 
 
 class FeedbackResource(Resource):

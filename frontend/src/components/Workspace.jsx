@@ -45,7 +45,13 @@ export default function Workspace({
   showStatus,
 }) {
   const [tab, setTab] = useState("search");
+  const [galleryQuery, setGalleryQuery] = useState(null);
   const current = TABS.find((item) => item.id === tab);
+
+  function searchWithGalleryImage(image) {
+    setGalleryQuery(image);
+    setTab("search");
+  }
 
   return (
     <div className="app-shell">
@@ -106,7 +112,11 @@ export default function Workspace({
         </header>
 
         <div hidden={tab !== "search"}>
-          <SearchPanel showStatus={showStatus} />
+          <SearchPanel
+            galleryImage={galleryQuery}
+            onClearGalleryImage={() => setGalleryQuery(null)}
+            showStatus={showStatus}
+          />
         </div>
 
         <div hidden={tab !== "gallery"}>
@@ -117,6 +127,7 @@ export default function Workspace({
             offset={offset}
             onGoImport={() => setTab("manage")}
             onRefresh={onGalleryChanged}
+            onSearch={searchWithGalleryImage}
             pageSize={pageSize}
             showStatus={showStatus}
           />

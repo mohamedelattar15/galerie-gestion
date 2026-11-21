@@ -323,6 +323,16 @@ def test_authentication_and_gallery_isolation(tmp_path: Path) -> None:
     transformed = transformed_response.json
     assert transformed["parent_image_id"] == original["id"]
     assert (transformed["width"], transformed["height"]) == (8, 8)
+    assert transformed["filename"] == "flower_resize_8x8.png"
+
+    chained_response = first_client.post(
+        f"/api/images/{transformed['id']}/transform",
+        json={"operation": "rotate", "degrees": 90},
+    )
+    assert chained_response.status_code == 201
+    chained = chained_response.json
+    assert chained["parent_image_id"] == transformed["id"]
+    assert chained["filename"] == "flower_rotate90.png"
 
     second_client = app.test_client()
     second_registration = second_client.post(
@@ -334,6 +344,7 @@ def test_authentication_and_gallery_isolation(tmp_path: Path) -> None:
     assert second_client.get("/api/images").json == {"images": []}
 
     assert first_client.delete(f"/api/images/{original['id']}").status_code == 409
+    assert first_client.delete(f"/api/images/{chained['id']}").status_code == 200
     assert first_client.delete(f"/api/images/{transformed['id']}").status_code == 200
     assert first_client.delete(f"/api/images/{original['id']}").status_code == 200
     assert first_client.delete(f"/api/categories/{child.json['id']}").status_code == 200
@@ -370,6 +381,59 @@ def test_upload_removes_the_stored_file_when_the_database_fails(
         )
 
     assert list(uploads.glob("*")) == []
+
+
+def test_search_accepts_a_gallery_image_as_query(tmp_path: Path) -> None:
+    dataset = _make_dataset(tmp_path)
+    index_path = tmp_path / "features.npz"
+    build_index(dataset, index_path)
+    app = create_app(index_path=index_path, config=_test_config(tmp_path))
+    client = _authenticated_client(app)
+
+    upload = client.post(
+        "/api/images",
+        data={"image": (BytesIO(_png_bytes((220, 220, 20))), "query.png")},
+        content_type="multipart/form-data",
+    )
+    assert upload.status_code == 201
+    gallery_id = upload.json["results"][0]["id"]
+
+    response = client.post(
+        "/api/search",
+        data={"gallery_image_id": str(gallery_id), "top_k": "3"},
+    )
+
+    assert response.status_code == 200
+    assert response.json["query_source"]["type"] == "gallery"
+    assert response.json["query_source"]["id"] == gallery_id
+    assert response.json["corpus"]["name"] == "GHIM-10K"
+    assert response.json["corpus"]["images"] == 3
+    assert len(response.json["results"]) == 3
+
+
+def test_search_rejects_another_users_gallery_image(tmp_path: Path) -> None:
+    dataset = _make_dataset(tmp_path)
+    index_path = tmp_path / "features.npz"
+    build_index(dataset, index_path)
+    app = create_app(index_path=index_path, config=_test_config(tmp_path))
+    owner = _authenticated_client(app)
+    upload = owner.post(
+        "/api/images",
+        data={"image": (BytesIO(_png_bytes((10, 200, 30))), "private.png")},
+        content_type="multipart/form-data",
+    )
+    gallery_id = upload.json["results"][0]["id"]
+
+    other = app.test_client()
+    assert other.post(
+        "/api/auth/register",
+        json={"username": "another-g13", "password": "another-password-123"},
+    ).status_code == 201
+
+    response = other.post("/api/search", data={"gallery_image_id": str(gallery_id)})
+
+    assert response.status_code == 404
+    assert "n'existe pas" in response.json["error"]
 
 
 def test_search_session_is_private_to_its_owner(tmp_path: Path) -> None:

@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { api } from "../api.js";
 import ConfirmDialog from "./ConfirmDialog.jsx";
-import ImageInspector from "./ImageInspector.jsx";
+import ImageDetailPage from "./ImageDetailPage.jsx";
 
 export default function GalleryPanel({
   categories,
@@ -13,6 +13,7 @@ export default function GalleryPanel({
   pageSize,
   onRefresh,
   onGoImport,
+  onSearch,
   showStatus,
 }) {
   const [selected, setSelected] = useState(null);
@@ -31,6 +32,30 @@ export default function GalleryPanel({
     } catch (error) {
       showStatus(error.message, true);
     }
+  }
+
+  if (selected) {
+    return (
+      <>
+        <ImageDetailPage
+          categoryName={categoryNames.get(selected.category_id)}
+          image={selected}
+          onBack={() => setSelected(null)}
+          onChanged={() => onRefresh(offset)}
+          onDelete={() => setToDelete(selected)}
+          onSearch={onSearch}
+          showStatus={showStatus}
+        />
+        {toDelete && (
+          <ConfirmDialog
+            message="Cette action est définitive. Les copies transformées ne sont pas affectées."
+            onCancel={() => setToDelete(null)}
+            onConfirm={() => removeImage(toDelete)}
+            title={`Supprimer « ${toDelete.filename} » ?`}
+          />
+        )}
+      </>
+    );
   }
 
   return (
@@ -120,18 +145,6 @@ export default function GalleryPanel({
             Suivant <ChevronRight size={16} />
           </button>
         </nav>
-      )}
-
-      {selected && (
-        <ImageInspector
-          categoryName={categoryNames.get(selected.category_id)}
-          image={selected}
-          key={selected.id}
-          onChanged={() => onRefresh(offset)}
-          onClose={() => setSelected(null)}
-          onDelete={() => setToDelete(selected)}
-          showStatus={showStatus}
-        />
       )}
 
       {toDelete && (
