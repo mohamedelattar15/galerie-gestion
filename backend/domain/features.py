@@ -5,13 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from numpy.typing import NDArray
 from PIL import Image
-
-from backend.domain.segmentation import (
-    DEFAULT_THRESHOLD as DEFAULT_SEPARABILITY_THRESHOLD,
-)
-from backend.domain.segmentation import block_variance_weights, descriptor_mode, object_mask
 
 COLOR_HISTOGRAM_BINS = 16
 DOMINANT_COLOR_COUNT = 3
@@ -77,106 +71,35 @@ def _prepare_image(image: Image.Image) -> Image.Image:
     return rgb_image
 
 
-def _color_histogram(
-    rgb_image: Image.Image,
-    mask: NDArray[np.bool_] | None = None,
-    weights: NDArray[np.float32] | None = None,
-) -> np.ndarray:
+def _color_histogram(rgb_image: Image.Image) -> np.ndarray:
     hsv = np.asarray(rgb_image.convert("HSV"), dtype=np.uint8)
     bins: list[np.ndarray] = []
-    selection = None if mask is None else np.asarray(mask, dtype=bool)
-    pixel_weights = None if weights is None else np.asarray(weights, dtype=np.float64)
-    if pixel_weights is not None:
-        pixel_weights = pixel_weights.ravel()
-        if selection is not None:
-            pixel_weights = pixel_weights[selection.ravel()]
-        total_weight = float(pixel_weights.sum())
-        if total_weight <= 0:
-            raise ValueError("Les poids de l'image sont nuls.")
-    else:
-        total_weight = float(selection.sum()) if selection is not None else float(
-            hsv.shape[0] * hsv.shape[1]
-        )
-    if total_weight == 0:
-        raise ValueError("Le masque de l'image est vide.")
+    pixel_count = hsv.shape[0] * hsv.shape[1]
     for channel in range(3):
-        values = hsv[:, :, channel]
-        if selection is not None:
-            values = values[selection]
-        flat = (values.ravel() // (256 // COLOR_HISTOGRAM_BINS))
-        if pixel_weights is not None:
-            counts = np.bincount(
-                flat, weights=pixel_weights, minlength=COLOR_HISTOGRAM_BINS
-            )
-        else:
-            counts = np.bincount(flat, minlength=COLOR_HISTOGRAM_BINS).astype(np.float64)
-        bins.append((counts / total_weight).astype(np.float32))
+        counts = np.bincount(
+            (hsv[:, :, channel] // (256 // COLOR_HISTOGRAM_BINS)).ravel(),
+            minlength=COLOR_HISTOGRAM_BINS,
+        )
+        bins.append(counts.astype(np.float32) / pixel_count)
     return np.concatenate(bins)
 
 
-def _color_moments(
-    rgb_image: Image.Image,
-    mask: NDArray[np.bool_] | None = None,
-    weights: NDArray[np.float32] | None = None,
-) -> np.ndarray:
+def _color_moments(rgb_image: Image.Image) -> np.ndarray:
     values = np.asarray(rgb_image, dtype=np.float32) / 255.0
-    if mask is not None:
-        selection = np.asarray(mask, dtype=bool)
-        if not selection.any():
-            raise ValueError("Le masque de l'image est vide.")
-        values = values[selection]
-        if weights is not None:
-            pixel_weights = np.asarray(weights, dtype=np.float64)[selection]
-        else:
-            pixel_weights = None
-    elif weights is not None:
-        pixel_weights = np.asarray(weights, dtype=np.float64).ravel()
-        values = values.reshape(-1, 3)
-    else:
-        pixel_weights = None
-
-    if pixel_weights is not None:
-        total = float(pixel_weights.sum())
-        if total <= 0:
-            raise ValueError("Les poids de l'image sont nuls.")
-        means = (values * pixel_weights[:, None]).sum(axis=0) / total
-        centered = values - means
-        weighted_second = (centered**2 * pixel_weights[:, None]).sum(axis=0) / total
-        standard_deviations = np.sqrt(weighted_second)
-        third_moments = (centered**3 * pixel_weights[:, None]).sum(axis=0) / total
-        safe_std = np.where(standard_deviations > 1e-12, standard_deviations, 1.0)
-        skewness = np.where(
-            standard_deviations > 1e-12,
-            third_moments / safe_std**3,
-            0.0,
-        )
-        return np.concatenate((means, standard_deviations, skewness)).astype(np.float32)
-
     means = values.mean(axis=(0, 1))
     centered = values - means
     standard_deviations = np.sqrt(np.mean(centered**2, axis=(0, 1)))
     third_moments = np.mean(centered**3, axis=(0, 1))
-    # A perfectly flat image has no measurable dispersion; report zero skewness
-    # instead of amplifying float rounding to 1.0.
-    skewness = np.where(
-        standard_deviations > 1e-4,
-        third_moments / np.where(standard_deviations > 1e-4, standard_deviations, 1.0) ** 3,
-        0.0,
+    skewness = np.divide(
+        third_moments,
+        standard_deviations**3,
+        out=np.zeros_like(third_moments),
+        where=standard_deviations > 1e-12,
     )
     return np.concatenate((means, standard_deviations, skewness)).astype(np.float32)
 
 
-def _dominant_colors(
-    rgb_image: Image.Image,
-    mask: NDArray[np.bool_] | None = None,
-) -> np.ndarray:
-    if mask is not None:
-        selection = np.asarray(mask, dtype=bool)
-        if not selection.any():
-            raise ValueError("Le masque de l'image est vide.")
-        background = Image.new("RGB", rgb_image.size, (0, 0, 0))
-        background.paste(rgb_image, mask=Image.fromarray((selection * 255).astype(np.uint8)))
-        rgb_image = background
+def _dominant_colors(rgb_image: Image.Image) -> np.ndarray:
     quantized = rgb_image.quantize(
         colors=DOMINANT_COLOR_COUNT,
         method=Image.Quantize.MEDIANCUT,
@@ -278,58 +201,13 @@ def _lbp_histogram(rgb_image: Image.Image) -> np.ndarray:
     return counts / counts.sum()
 
 
-def _expand_block_weights(
-    weights: NDArray[np.float32],
-    size: tuple[int, int],
-) -> NDArray[np.float32]:
-    """Expand a ``grid × grid`` weight map to one weight per pixel."""
-    width, height = size
-    grid = weights.shape[0]
-    rows = np.repeat(np.arange(grid), np.ceil(height / grid).astype(int))[:height]
-    columns = np.repeat(np.arange(grid), np.ceil(width / grid).astype(int))[:width]
-    return weights[np.ix_(rows, columns)].astype(np.float32)
-
-
-def extract_features(
-    image: Image.Image,
-    mode: str = "global",
-    threshold: float = DEFAULT_SEPARABILITY_THRESHOLD,
-) -> ImageDescriptor:
-    """Extract normalized histograms and raw numeric descriptors from an image.
-
-    ``mode`` selects how a uniform background is handled:
-
-    * ``"global"`` — the whole image, as before.
-    * ``"variance"`` — the whole image, with flat blocks weighted down.
-    * ``"segmented"`` — only the foreground, when a background is separable.
-    * ``"adaptive"`` — ``"segmented"`` when ``separability_ratio`` exceeds
-      ``threshold``, ``"variance"`` otherwise.
-    """
+def extract_features(image: Image.Image) -> ImageDescriptor:
+    """Extract normalized histograms and raw numeric descriptors from an image."""
     rgb_image = _prepare_image(image)
-    mask: NDArray[np.bool_] | None = None
-    weights: NDArray[np.float32] | None = None
-    if mode == "adaptive":
-        mode = descriptor_mode(rgb_image, threshold)
-    elif mode not in {"global", "variance", "segmented"}:
-        raise ValueError(
-            "mode doit être 'global', 'variance', 'segmented' ou 'adaptive'."
-        )
-
-    if mode == "segmented":
-        mask = object_mask(rgb_image, threshold)
-        if mask is None:
-            weights = block_variance_weights(rgb_image)
-    elif mode == "variance":
-        weights = block_variance_weights(rgb_image)
-
-    pixel_weights = None
-    if weights is not None:
-        pixel_weights = _expand_block_weights(weights, rgb_image.size)
-
     descriptor = ImageDescriptor(
-        color_histogram=_color_histogram(rgb_image, mask, pixel_weights),
-        color_moments=_color_moments(rgb_image, mask, pixel_weights),
-        dominant_colors=_dominant_colors(rgb_image, mask),
+        color_histogram=_color_histogram(rgb_image),
+        color_moments=_color_moments(rgb_image),
+        dominant_colors=_dominant_colors(rgb_image),
         glcm=_glcm_properties(rgb_image),
         lbp_histogram=_lbp_histogram(rgb_image),
     )
