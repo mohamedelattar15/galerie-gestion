@@ -15,6 +15,7 @@ from backend.database.connection import init_db
 from backend.domain.models import DatasetIndex
 from backend.domain.retrieval import index_fingerprint
 from backend.routes.auth import auth_api
+from backend.routes.batch import batch_api
 from backend.routes.features import DescriptorResource
 from backend.routes.gallery import gallery_api
 from backend.routes.health import HealthResource

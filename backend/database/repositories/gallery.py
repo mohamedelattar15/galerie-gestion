@@ -174,3 +174,47 @@ def delete_image_record(image_id: int, user_id: int) -> None:
         (image_id, user_id),
     )
     database.commit()
+
+
+def images_with_derived(user_id: int, image_ids: list[int]) -> set[int]:
+    """Return the subset of ``image_ids`` that still have derived copies."""
+    if not image_ids:
+        return set()
+    placeholders = ",".join("?" for _ in image_ids)
+    rows = get_db().execute(
+        f"""
+        SELECT DISTINCT parent_image_id FROM images
+        WHERE user_id = ? AND parent_image_id IN ({placeholders})
+        """,
+        (user_id, *image_ids),
+    ).fetchall()
+    return {int(row["parent_image_id"]) for row in rows}
+
+
+def owned_image_records(user_id: int, image_ids: list[int]) -> dict[int, sqlite3.Row]:
+    """Return the owned image rows for the given identifiers, keyed by id."""
+    if not image_ids:
+        return {}
+    placeholders = ",".join("?" for _ in image_ids)
+    rows = get_db().execute(
+        f"SELECT * FROM images WHERE user_id = ? AND id IN ({placeholders})",
+        (user_id, *image_ids),
+    ).fetchall()
+    return {int(row["id"]): row for row in rows}
+
+
+def move_images_to_category(user_id: int, image_ids: list[int], category_id: int | None) -> int:
+    """Reassign several images to a category and return the number of rows touched."""
+    if not image_ids:
+        return 0
+    placeholders = ",".join("?" for _ in image_ids)
+    database = get_db()
+    cursor = database.execute(
+        f"""
+        UPDATE images SET category_id = ?
+        WHERE user_id = ? AND id IN ({placeholders})
+        """,
+        (category_id, user_id, *image_ids),
+    )
+    database.commit()
+    return cursor.rowcount
