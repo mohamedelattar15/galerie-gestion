@@ -16,6 +16,7 @@ export default function App() {
   const [images, setImages] = useState([]);
   const [galleryOffset, setGalleryOffset] = useState(0);
   const [galleryLoading, setGalleryLoading] = useState(false);
+  const galleryCategoryRef = useRef(null);
   const [toasts, setToasts] = useState([]);
   const toastId = useRef(0);
 
@@ -36,10 +37,19 @@ export default function App() {
     setCategories(await api("/api/categories"));
   }, []);
 
-  const refreshGallery = useCallback(async (offset = 0) => {
+  const refreshGallery = useCallback(async (offset = 0, categoryId = undefined) => {
+    if (categoryId !== undefined) galleryCategoryRef.current = categoryId;
+    const activeCategoryId = galleryCategoryRef.current;
     setGalleryLoading(true);
     try {
-      const result = await api(`/api/images?limit=${GALLERY_PAGE_SIZE}&offset=${offset}`);
+      const query = new URLSearchParams({
+        limit: String(GALLERY_PAGE_SIZE),
+        offset: String(offset),
+      });
+      if (activeCategoryId !== null && activeCategoryId !== "") {
+        query.set("category_id", String(activeCategoryId));
+      }
+      const result = await api(`/api/images?${query.toString()}`);
       setImages(result.images);
       setGalleryOffset(offset);
     } finally {
@@ -58,6 +68,7 @@ export default function App() {
     if (!user) {
       setCategories([]);
       setImages([]);
+      galleryCategoryRef.current = null;
       return;
     }
     Promise.all([refreshCategories(), refreshGallery()]).catch((error) =>

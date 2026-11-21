@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api, jsonRequest } from "../api.js";
 import ConfirmDialog from "./ConfirmDialog.jsx";
 import ImageDetailPage from "./ImageDetailPage.jsx";
+import MoveToCategoryDialog from "./MoveToCategoryDialog.jsx";
 
 export default function GalleryPanel({
   categories,
@@ -11,7 +12,7 @@ export default function GalleryPanel({
   loading,
   offset,
   pageSize,
-  onRefresh,
+  onRefresh: onRefreshGallery,
   onGoImport,
   onSearch,
   showStatus,
@@ -20,11 +21,29 @@ export default function GalleryPanel({
   const [toDelete, setToDelete] = useState(null);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("");
   const categoryNames = new Map(categories.map((category) => [category.id, category.name]));
   const hasPreviousPage = offset > 0;
   const hasNextPage = images.length === pageSize;
   const pageIds = images.map((image) => image.id);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+
+  function refreshGalleryPage(nextOffset = offset) {
+    return onRefreshGallery(nextOffset, categoryFilter || null);
+  }
+
+  function categoryPath(category) {
+    const parts = [category.name];
+    let parentId = category.parent_id;
+    while (parentId) {
+      const parent = categories.find((item) => item.id === parentId);
+      if (!parent) break;
+      parts.unshift(parent.name);
+      parentId = parent.parent_id;
+    }
+    return parts.join(" / ");
+  }
 
   useEffect(() => {
     const visibleIds = new Set(pageIds);
@@ -57,7 +76,7 @@ export default function GalleryPanel({
     try {
       await api(`/api/images/${image.id}`, { method: "DELETE" });
       setSelected(null);
-      await onRefresh(offset);
+      await refreshGalleryPage(offset);
       showStatus("Image supprimée.");
     } catch (error) {
       showStatus(error.message, true);
@@ -77,13 +96,42 @@ export default function GalleryPanel({
         report.failed.length === 0 && ids.length === images.length && offset > 0
           ? offset - pageSize
           : offset;
-      await onRefresh(nextOffset);
+      await refreshGalleryPage(nextOffset);
       const failedCount = report.failed?.length ?? 0;
       if (failedCount) {
         showStatus(`${report.succeeded.length} image(s) supprimée(s), ${failedCount} échec(s).`, true);
       } else {
         showStatus(`${report.succeeded.length} image(s) supprimée(s).`);
       }
+    } catch (error) {
+      showStatus(error.message, true);
+    }
+  }
+
+  async function moveSelectedImages(categoryId) {
+    const ids = [...selectedIds];
+    try {
+      const report = await api(
+        "/api/images/batch-move",
+        jsonRequest("POST", { image_ids: ids, category_id: categoryId }),
+      );
+      setSelectedIds(new Set());
+      const movingOutOfFilter =
+        categoryFilter !== "" && String(categoryId ?? "") !== categoryFilter;
+      const nextOffset =
+        movingOutOfFilter && ids.length === images.length && offset > 0
+          ? offset - pageSize
+          : offset;
+      await refreshGalleryPage(nextOffset);
+      if (report.failed.length) {
+        showStatus(
+          `${report.succeeded.length} image(s) déplacée(s), ${report.failed.length} échec(s).`,
+          true,
+        );
+      } else {
+        showStatus(`${report.succeeded.length} image(s) déplacée(s).`);
+      }
+      setShowMoveDialog(false);
     } catch (error) {
       showStatus(error.message, true);
     }
@@ -96,7 +144,7 @@ export default function GalleryPanel({
           categoryName={categoryNames.get(selected.category_id)}
           image={selected}
           onBack={() => setSelected(null)}
-          onChanged={() => onRefresh(offset)}
+          onChanged={() => refreshGalleryPage(offset)}
           onDelete={() => setToDelete(selected)}
           onSearch={onSearch}
           showStatus={showStatus}
@@ -120,6 +168,25 @@ export default function GalleryPanel({
           {images.length > 0 ? `Images ${offset + 1} à ${offset + images.length}` : "Aucune image"}
         </span>
         <div className="gallery-bulk-actions">
+          <label className="gallery-filter">
+            Catégorie
+            <select
+              onChange={(event) => {
+                const value = event.target.value;
+                setCategoryFilter(value);
+                setSelectedIds(new Set());
+                onRefreshGallery(0, value || null).catch((error) => showStatus(error.message, true));
+              }}
+              value={categoryFilter}
+            >
+              <option value="">Toutes les catégories</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {categoryPath(category)}
+                </option>
+              ))}
+            </select>
+          </label>
           {images.length > 0 && (
             <button className="button button-quiet" onClick={togglePageSelection} type="button">
               {allPageSelected ? "Tout désélectionner" : "Tout sélectionner"}
@@ -135,9 +202,16 @@ export default function GalleryPanel({
               >
                 <Trash2 size={16} /> Supprimer la sélection
               </button>
+              <button
+                className="button button-secondary"
+                onClick={() => setShowMoveDialog(true)}
+                type="button"
+              >
+                Déplacer la sélection
+              </button>
             </>
           )}
-          <button className="button button-quiet" onClick={() => onRefresh(offset)} type="button">
+          <button className="button button-quiet" onClick={() => refreshGalleryPage(offset)} type="button">
             <RefreshCw className={loading ? "spin" : ""} size={16} /> Actualiser
           </button>
         </div>
@@ -163,7 +237,10 @@ export default function GalleryPanel({
       ) : (
         <div className="gallery-grid">
           {images.map((image) => (
-            <article className={`tile${selectedIds.has(image.id) ? " is-selected" : ""}`} key={image.id}>
+            <article
+              className={`tile${selectedIds.has(image.id) ? " is-selected" : ""}`}
+              key={image.id}
+            >
               <label className="tile-select">
                 <input
                   aria-label={`Sélectionner ${image.filename}`}
@@ -212,7 +289,7 @@ export default function GalleryPanel({
           <button
             className="button button-quiet"
             disabled={!hasPreviousPage}
-            onClick={() => onRefresh(Math.max(0, offset - pageSize))}
+            onClick={() => refreshGalleryPage(Math.max(0, offset - pageSize))}
             type="button"
           >
             <ChevronLeft size={16} /> Précédent
@@ -221,7 +298,7 @@ export default function GalleryPanel({
           <button
             className="button button-quiet"
             disabled={!hasNextPage}
-            onClick={() => onRefresh(offset + pageSize)}
+            onClick={() => refreshGalleryPage(offset + pageSize)}
             type="button"
           >
             Suivant <ChevronRight size={16} />
@@ -243,6 +320,14 @@ export default function GalleryPanel({
           onCancel={() => setConfirmBatchDelete(false)}
           onConfirm={removeSelectedImages}
           title={`Supprimer ${selectedIds.size} image(s) sélectionnée(s) ?`}
+        />
+      )}
+      {showMoveDialog && (
+        <MoveToCategoryDialog
+          categories={categories}
+          onCancel={() => setShowMoveDialog(false)}
+          onMove={moveSelectedImages}
+          selectedCount={selectedIds.size}
         />
       )}
     </section>
