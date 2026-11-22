@@ -27,7 +27,7 @@ L’application doit permettre à un utilisateur de :
 
 **Feature Relevance Estimation (FRE)**
 
-Groupes concernés : G1, G5, G10, G13 et G14.
+Groupes concernés : G1, G5, G10, G13, G14 et G16.
 
 Cette méthode consiste à estimer l'importance des différentes caractéristiques visuelles pour améliorer la recherche d'images similaires.
 
@@ -1037,7 +1037,7 @@ Exemple de tableau pour présenter les résultats expérimentaux :
 | FRE - Itération 2 | 0,5228 ± 0,0382 | 0,01048 ± 0,00077 |
 | FRE - Itération 3 | 0,5256 ± 0,0393 | 0,01053 ± 0,00079 |
 
-Ces valeurs proviennent de cinq tirages reproductibles de 100 requêtes (graines 42 à 46) sur GHIM-10K, avec \(N=10\) et une fenêtre de feedback de 10 résultats, identique à ce que l'interface affiche. Le détail du protocole est décrit dans `README_IMPLEMENTATION.md`.
+Ces valeurs proviennent de cinq tirages reproductibles de 100 requêtes (graines 42 à 46) sur GHIM-10K, avec \(N=10\) et une fenêtre de feedback de 10 résultats, identique à ce que l'interface affiche. Le protocole, les paramètres et les limites sont décrits dans [EVALUATION.md](EVALUATION.md).
 
 **Important :** Les performances annoncées dans le papier scientifique correspondent à ses propres expériences et à sa propre base de données. Elles ne doivent pas être présentées comme des résultats obtenus sur GHIM-10K.
 

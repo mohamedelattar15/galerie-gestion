@@ -1,4 +1,6 @@
-# Plan et implémentation — Projet CBIR | Groupe G13
+# Plan initial et notes d’implémentation — Projet CBIR | Groupe G13
+
+> **Statut du document :** ce fichier conserve le plan de conception et de réalisation préparé au cours du projet. Il mélange des exigences, des propositions initiales et des éléments déjà implémentés; il n’est donc pas la référence unique pour l’état actuel du code. Pour la documentation organisée et synchronisée avec l’application, consulter l’[index des guides](README.md) et en particulier [l’architecture](ARCHITECTURE.md), [les méthodes](METHODS.md), [l’API](API.md) et [l’évaluation](EVALUATION.md).
 
 > **Avancement :** l'extraction des descripteurs, la normalisation, la recherche CBIR/FRE, l'authentification, la galerie SQLite, les transformations et la persistance des sessions de recherche sont implémentées et testées. Le frontend React + Vite couvre les principaux parcours, y compris les graphiques des descripteurs et le feedback FRE. L'index GHIM-10K complet (10 000 images, 329 dimensions) a été généré localement et une première évaluation hors ligne multi-graines a été exécutée. La validation par de vrais utilisateurs reste à conduire. Le dataset et l'index sont exclus du dépôt.
 
