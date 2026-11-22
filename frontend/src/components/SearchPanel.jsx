@@ -146,7 +146,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
           <span className="method-tag">FRE · G13</span>
         </div>
 
-        <form className="stack search-form" onSubmit={search}>
+        <form aria-busy={loadingAction === "search"} className="stack search-form" onSubmit={search}>
           {galleryImage ? (
             <div className="gallery-query">
               <img alt={galleryImage.filename} src={galleryImage.file_url} />
@@ -209,8 +209,11 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
             disabled={loading || (!queryFile && !galleryQuery)}
             type="submit"
           >
-            <Sparkles size={16} />
-            {loadingAction === "search" ? "Recherche en cours…" : "Lancer la recherche"}
+            {loadingAction === "search" ? (
+              <><span aria-hidden="true" className="button-spinner" /> Recherche en cours…</>
+            ) : (
+              <><Sparkles size={16} /> Lancer la recherche</>
+            )}
           </button>
           {sessionId && (
             <button className="button button-quiet" onClick={reset} type="button">
@@ -240,7 +243,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
         </details>
       </aside>
 
-      <section className="search-results">
+      <section aria-busy={loading} className="search-results">
         {results.length === 0 ? (
           <div className="empty-state">
             <span className="empty-icon">
@@ -270,10 +273,11 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
               {results.map((result, index) => (
                 <ResultCard
                   choice={feedback[result.id]}
-                  key={result.id}
+                  key={`${iteration}-${result.id}`}
                   onToggle={toggleFeedback}
                   rank={index + 1}
                   result={result}
+                  style={{ "--result-order": index }}
                 />
               ))}
             </div>
@@ -300,8 +304,11 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
                 onClick={applyFeedback}
                 type="button"
               >
-                <Check size={16} />
-                {loadingAction === "feedback" ? "Mise à jour du classement…" : "Appliquer FRE"}
+                {loadingAction === "feedback" ? (
+                  <><span aria-hidden="true" className="button-spinner" /> Mise à jour du classement…</>
+                ) : (
+                  <><Check size={16} /> Appliquer FRE</>
+                )}
               </button>
             </div>
           </>
@@ -311,9 +318,9 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
   );
 }
 
-function ResultCard({ result, rank, choice, onToggle }) {
+function ResultCard({ result, rank, choice, onToggle, style }) {
   return (
-    <article className={`result${choice ? ` is-${choice}` : ""}`}>
+    <article className={`result${choice ? ` is-${choice}` : ""}`} style={style}>
       <div className="result-media">
         <img
           alt={`Résultat ${result.id}`}

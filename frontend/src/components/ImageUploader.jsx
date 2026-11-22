@@ -1,7 +1,7 @@
 import { UploadCloud, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { api } from "../api.js";
+import { uploadWithProgress } from "../api.js";
 import Dropzone from "./Dropzone.jsx";
 
 const MAX_FILES = 32;
@@ -10,6 +10,7 @@ export default function ImageUploader({ categories, onUploaded, showStatus }) {
   const [files, setFiles] = useState([]);
   const [categoryId, setCategoryId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
   const categoryNames = new Map(categories.map((category) => [category.id, category.name]));
 
   const previews = useMemo(
@@ -29,11 +30,12 @@ export default function ImageUploader({ categories, onUploaded, showStatus }) {
     event.preventDefault();
     if (files.length === 0) return;
     setLoading(true);
+    setUploadProgress(0);
     const formData = new FormData();
     for (const file of files) formData.append("images", file);
     if (categoryId) formData.append("category_id", categoryId);
     try {
-      const result = await api("/api/images", { method: "POST", body: formData });
+      const result = await uploadWithProgress("/api/images", formData, setUploadProgress);
       const failures = result.results.filter((image) => image.error);
       const details = failures.map((image) => `${image.filename}: ${image.error}`).join(" · ");
       await onUploaded();
@@ -46,6 +48,7 @@ export default function ImageUploader({ categories, onUploaded, showStatus }) {
       showStatus(error.message, true);
     } finally {
       setLoading(false);
+      setUploadProgress(null);
     }
   }
 
@@ -63,7 +66,7 @@ export default function ImageUploader({ categories, onUploaded, showStatus }) {
         )}
       </div>
 
-      <form className="stack" onSubmit={upload}>
+      <form aria-busy={loading} className="stack" onSubmit={upload}>
         <Dropzone
           hint={`Glissez-déposez ou cliquez · jusqu’à ${MAX_FILES} images`}
           label="Ajouter des images"
@@ -103,12 +106,28 @@ export default function ImageUploader({ categories, onUploaded, showStatus }) {
         </label>
 
         <button
+          aria-busy={loading}
           className="button button-primary"
           disabled={loading || files.length === 0}
           type="submit"
         >
-          <UploadCloud size={16} /> {loading ? "Importation…" : "Importer"}
+          {loading ? <span aria-hidden="true" className="button-spinner" /> : <UploadCloud size={16} />}
+          {loading
+            ? uploadProgress >= 100
+              ? "Traitement des images…"
+              : `Envoi ${uploadProgress ?? 0} %`
+            : "Importer"}
         </button>
+        {loading && (
+          <div aria-label="Progression de l’import" className="upload-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={uploadProgress ?? 0}>
+            <div className="upload-progress-track">
+              <span style={{ width: `${uploadProgress ?? 0}%` }} />
+            </div>
+            <span className="hint">
+              {uploadProgress >= 100 ? "Fichiers transmis, traitement en cours…" : `${uploadProgress ?? 0} % envoyé`}
+            </span>
+          </div>
+        )}
       </form>
     </section>
   );

@@ -104,7 +104,7 @@ export default function ImageDetailPage({
           >
             <Download size={16} /> Télécharger
           </a>
-          <button className="button button-quiet" onClick={loadDescriptors} type="button">
+          <button aria-busy={loading} className="button button-quiet" disabled={loading} onClick={loadDescriptors} type="button">
             <RefreshCw className={loading ? "spin" : ""} size={16} /> Recalculer
           </button>
           <button className="button button-danger" onClick={onDelete} type="button">
@@ -181,7 +181,7 @@ export default function ImageDetailPage({
           </nav>
 
           {activeTab === "descriptors" && (
-            <section aria-labelledby="detail-tab-descriptors descriptor-title" className="panel detail-tab-panel" id="detail-panel-descriptors" role="tabpanel">
+            <section aria-busy={loading} aria-labelledby="detail-tab-descriptors descriptor-title" className="panel detail-tab-panel" id="detail-panel-descriptors" role="tabpanel">
               <div className="section-heading">
                 <div>
                   <p className="eyebrow">Analyse visuelle</p>

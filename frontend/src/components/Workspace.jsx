@@ -111,7 +111,7 @@ export default function Workspace({
           <p className="hint">{current.subtitle}</p>
         </header>
 
-        <div hidden={tab !== "search"}>
+        <div aria-hidden={tab !== "search"} className={`workspace-section${tab === "search" ? " is-active" : ""}`} hidden={tab !== "search"}>
           <SearchPanel
             galleryImage={galleryQuery}
             onClearGalleryImage={() => setGalleryQuery(null)}
@@ -119,7 +119,7 @@ export default function Workspace({
           />
         </div>
 
-        <div hidden={tab !== "gallery"}>
+        <div aria-hidden={tab !== "gallery"} className={`workspace-section${tab === "gallery" ? " is-active" : ""}`} hidden={tab !== "gallery"}>
           <GalleryPanel
             categories={categories}
             images={images}
@@ -133,7 +133,7 @@ export default function Workspace({
           />
         </div>
 
-        <div hidden={tab !== "manage"}>
+        <div aria-hidden={tab !== "manage"} className={`workspace-section${tab === "manage" ? " is-active" : ""}`} hidden={tab !== "manage"}>
           <div className="manage-grid">
             <ImageUploader
               categories={categories}
