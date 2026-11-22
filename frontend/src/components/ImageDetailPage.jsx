@@ -33,6 +33,20 @@ const MOMENT_LABELS = [
   "Asym. B",
 ];
 
+function handleDetailTabKeyDown(event) {
+  const tabs = [...event.currentTarget.parentElement.querySelectorAll('[role="tab"]')];
+  const index = tabs.indexOf(event.currentTarget);
+  let next = index;
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (index + 1) % tabs.length;
+  else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (index - 1 + tabs.length) % tabs.length;
+  else if (event.key === "Home") next = 0;
+  else if (event.key === "End") next = tabs.length - 1;
+  else return;
+  event.preventDefault();
+  tabs[next].focus();
+  tabs[next].click();
+}
+
 const GLCM_LABELS = ["Contraste", "Corrélation", "Énergie", "Homogénéité"];
 
 export default function ImageDetailPage({
@@ -150,8 +164,10 @@ export default function ImageDetailPage({
               aria-controls="detail-panel-descriptors"
               className={activeTab === "descriptors" ? "detail-tab active" : "detail-tab"}
               onClick={() => setActiveTab("descriptors")}
+              onKeyDown={handleDetailTabKeyDown}
               id="detail-tab-descriptors"
               role="tab"
+              tabIndex={activeTab === "descriptors" ? 0 : -1}
               type="button"
             >
               <BarChart3 size={17} /> Descripteurs
@@ -161,8 +177,10 @@ export default function ImageDetailPage({
               aria-controls="detail-panel-transform"
               className={activeTab === "transform" ? "detail-tab active" : "detail-tab"}
               onClick={() => setActiveTab("transform")}
+              onKeyDown={handleDetailTabKeyDown}
               id="detail-tab-transform"
               role="tab"
+              tabIndex={activeTab === "transform" ? 0 : -1}
               type="button"
             >
               <WandSparkles size={17} /> Transformer
@@ -172,8 +190,10 @@ export default function ImageDetailPage({
               aria-controls="detail-panel-background"
               className={activeTab === "background" ? "detail-tab active" : "detail-tab"}
               onClick={() => setActiveTab("background")}
+              onKeyDown={handleDetailTabKeyDown}
               id="detail-tab-background"
               role="tab"
+              tabIndex={activeTab === "background" ? 0 : -1}
               type="button"
             >
               <ScanSearch size={17} /> Analyse du fond

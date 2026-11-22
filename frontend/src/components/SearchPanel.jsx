@@ -1,4 +1,4 @@
-import { Check, RotateCcw, Sparkles, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { Check, ImagePlus, RotateCcw, ScanSearch, Sparkles, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api.js";
@@ -245,10 +245,51 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
 
       <section aria-busy={loading} className="search-results">
         {results.length === 0 ? (
-          <div className="empty-state">
+          <div className={`empty-state search-empty-state${sessionId && !loading ? " has-no-results" : ""}`}>
             <span className="empty-icon">
               <Sparkles size={26} />
             </span>
+            {!sessionId && !loading && (
+              <div className="search-empty-content">
+                <div className="search-welcome">
+                  <div className="search-welcome-copy">
+                    <span className="search-welcome-icon"><ScanSearch size={24} /></span>
+                    <p className="eyebrow">Recherche d’images similaires</p>
+                    <h2>Retrouvez vos images par leur contenu visuel</h2>
+                    <p className="hint">Choisissez une photo dans le panneau de gauche. La recherche la compare aux images du catalogue, puis vous pouvez affiner le classement avec le retour de pertinence FRE.</p>
+                  </div>
+                  <div aria-hidden="true" className="search-visual">
+                    <div className="search-visual-sun" />
+                    <div className="search-visual-hill search-visual-hill-back" />
+                    <div className="search-visual-hill search-visual-hill-front" />
+                    <span className="search-visual-scan"><ScanSearch size={22} /></span>
+                  </div>
+                </div>
+                <div className="search-overview">
+                  <h3>Comment fonctionne la recherche ?</h3>
+                  <div className="search-overview-grid">
+                    <article className="search-overview-card">
+                      <span className="search-step">01</span>
+                      <ImagePlus aria-hidden="true" size={19} />
+                      <h4>Choisissez une image</h4>
+                      <p>Importez une photo ou lancez une recherche depuis votre galerie.</p>
+                    </article>
+                    <article className="search-overview-card">
+                      <span className="search-step">02</span>
+                      <Sparkles aria-hidden="true" size={19} />
+                      <h4>Explorez les similarités</h4>
+                      <p>Les couleurs et les textures aident à classer les images les plus proches.</p>
+                    </article>
+                    <article className="search-overview-card">
+                      <span className="search-step">03</span>
+                      <RotateCcw aria-hidden="true" size={19} />
+                      <h4>Affinez avec FRE</h4>
+                      <p>Indiquez les images pertinentes pour ajuster le classement selon vos choix.</p>
+                    </article>
+                  </div>
+                </div>
+              </div>
+            )}
             <h3>{sessionId && !loading ? "Aucun résultat disponible" : "Prêt à chercher"}</h3>
             <p className="hint">
               Choisissez une image requête pour afficher les images les plus similaires.

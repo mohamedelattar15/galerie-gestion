@@ -1,4 +1,4 @@
-import { Images, LogOut, Moon, ScanSearch, Sun, UploadCloud } from "lucide-react";
+import { FolderTree, Images, Layers3, LogOut, Moon, ScanSearch, Sun, UploadCloud } from "lucide-react";
 import { useState } from "react";
 
 import CategoryPanel from "./CategoryPanel.jsx";
@@ -29,6 +29,20 @@ const TABS = [
     Icon: UploadCloud,
   },
 ];
+
+function handleTabKeyDown(event) {
+  const tabs = [...event.currentTarget.parentElement.querySelectorAll('[role="tab"]')];
+  const index = tabs.indexOf(event.currentTarget);
+  let next = index;
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (index + 1) % tabs.length;
+  else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = (index - 1 + tabs.length) % tabs.length;
+  else if (event.key === "Home") next = 0;
+  else if (event.key === "End") next = tabs.length - 1;
+  else return;
+  event.preventDefault();
+  tabs[next].focus();
+  tabs[next].click();
+}
 
 export default function Workspace({
   user,
@@ -68,7 +82,9 @@ export default function Workspace({
               className={`nav-item${tab === id ? " is-active" : ""}`}
               key={id}
               onClick={() => setTab(id)}
+              onKeyDown={handleTabKeyDown}
               role="tab"
+              tabIndex={tab === id ? 0 : -1}
               type="button"
             >
               <Icon size={19} />
@@ -134,6 +150,29 @@ export default function Workspace({
         </div>
 
         <div aria-hidden={tab !== "manage"} className={`workspace-section${tab === "manage" ? " is-active" : ""}`} hidden={tab !== "manage"}>
+          <section aria-labelledby="manage-intro-title" className="manage-intro">
+            <div className="manage-intro-main">
+              <span className="manage-intro-icon"><UploadCloud size={24} /></span>
+              <p className="eyebrow">Importer & organiser</p>
+              <h2 id="manage-intro-title">Construisez une galerie facile à explorer</h2>
+              <p className="hint">Ajoutez vos photos, classez-les dans une arborescence de catégories et retrouvez-les ensuite dans la galerie ou par recherche visuelle.</p>
+              <div className="manage-intro-badges">
+                <span><Images size={15} /> Import par lot jusqu’à 32 images</span>
+                <span><FolderTree size={15} /> {categories.length} catégorie{categories.length > 1 ? "s" : ""}</span>
+              </div>
+            </div>
+            <div aria-hidden="true" className="manage-intro-art">
+              <div className="manage-art-back"><Layers3 size={28} /></div>
+              <div className="manage-art-front"><FolderTree size={28} /></div>
+              <span className="manage-art-dot manage-art-dot-one" />
+              <span className="manage-art-dot manage-art-dot-two" />
+            </div>
+            <div className="manage-steps">
+              <article><span>01</span><strong>Ajoutez</strong><small>Sélectionnez une ou plusieurs photos.</small></article>
+              <article><span>02</span><strong>Classez</strong><small>Choisissez une catégorie ou créez-en une.</small></article>
+              <article><span>03</span><strong>Explorez</strong><small>Retrouvez vos images dans la galerie et la recherche.</small></article>
+            </div>
+          </section>
           <div className="manage-grid">
             <ImageUploader
               categories={categories}
