@@ -1,11 +1,14 @@
 import {
   ArrowLeft,
+  BarChart3,
   Download,
   Eye,
   ImagePlus,
   RefreshCw,
+  ScanSearch,
   Search,
   Trash2,
+  WandSparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -13,9 +16,9 @@ import { api } from "../api.js";
 import BackgroundAnalysis from "./BackgroundAnalysis.jsx";
 
 const HISTOGRAM_BLOCKS = [
-  ["Teinte", 0, 16, "#287b78"],
-  ["Saturation", 16, 32, "#4184a5"],
-  ["Valeur", 32, 48, "#d18b37"],
+  ["Teinte", 0, 16, "#287b78", "H"],
+  ["Saturation", 16, 32, "#4184a5", "S"],
+  ["Valeur", 32, 48, "#d18b37", "V"],
 ];
 
 const MOMENT_LABELS = [
@@ -45,10 +48,12 @@ export default function ImageDetailPage({
   const [descriptor, setDescriptor] = useState(null);
   const [loading, setLoading] = useState(false);
   const [derived, setDerived] = useState(null);
+  const [activeTab, setActiveTab] = useState("descriptors");
 
   useEffect(() => {
     setImage(initialImage);
     setDerived(null);
+    setActiveTab("descriptors");
   }, [initialImage]);
 
   const loadDescriptors = useCallback(async () => {
@@ -79,9 +84,13 @@ export default function ImageDetailPage({
   return (
     <div className="detail-page">
       <div className="detail-toolbar">
-        <button className="button button-quiet" onClick={onBack} type="button">
-          <ArrowLeft size={16} /> Retour à la galerie
+        <button className="button button-quiet detail-back" onClick={onBack} type="button">
+          <ArrowLeft size={16} /> Galerie
         </button>
+        <div className="detail-page-title">
+          <p className="eyebrow">Parcourez, inspectez et transformez vos images</p>
+          <h1 title={image.filename}>{image.filename}</h1>
+        </div>
         <div className="detail-toolbar-actions">
           {onSearch && (
             <button className="button button-primary" onClick={() => onSearch(image)} type="button">
@@ -111,7 +120,6 @@ export default function ImageDetailPage({
           </div>
 
           <section className="panel detail-info">
-            <h2>{image.filename}</h2>
             <dl className="detail-meta">
               <div>
                 <dt>Dimensions</dt>
@@ -136,41 +144,88 @@ export default function ImageDetailPage({
         </aside>
 
         <div className="detail-main">
-          <section className="panel">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Analyse visuelle</p>
-                <h2>Descripteurs</h2>
+          <nav aria-label="Outils d’analyse de l’image" className="detail-tabs" role="tablist">
+            <button
+              aria-selected={activeTab === "descriptors"}
+              aria-controls="detail-panel-descriptors"
+              className={activeTab === "descriptors" ? "detail-tab active" : "detail-tab"}
+              onClick={() => setActiveTab("descriptors")}
+              id="detail-tab-descriptors"
+              role="tab"
+              type="button"
+            >
+              <BarChart3 size={17} /> Descripteurs
+            </button>
+            <button
+              aria-selected={activeTab === "transform"}
+              aria-controls="detail-panel-transform"
+              className={activeTab === "transform" ? "detail-tab active" : "detail-tab"}
+              onClick={() => setActiveTab("transform")}
+              id="detail-tab-transform"
+              role="tab"
+              type="button"
+            >
+              <WandSparkles size={17} /> Transformer
+            </button>
+            <button
+              aria-selected={activeTab === "background"}
+              aria-controls="detail-panel-background"
+              className={activeTab === "background" ? "detail-tab active" : "detail-tab"}
+              onClick={() => setActiveTab("background")}
+              id="detail-tab-background"
+              role="tab"
+              type="button"
+            >
+              <ScanSearch size={17} /> Analyse du fond
+            </button>
+          </nav>
+
+          {activeTab === "descriptors" && (
+            <section aria-labelledby="detail-tab-descriptors descriptor-title" className="panel detail-tab-panel" id="detail-panel-descriptors" role="tabpanel">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Analyse visuelle</p>
+                  <h2 id="descriptor-title">Descripteurs de l’image</h2>
+                  <p className="hint">Couleur, texture et répartition des motifs mesurées dans cette photo.</p>
+                </div>
+                {descriptor && (
+                  <span className="method-tag">
+                    {descriptor.color_histogram.length + descriptor.lbp_histogram.length + 25} dimensions
+                  </span>
+                )}
               </div>
-              {descriptor && (
-                <span className="method-tag">
-                  {descriptor.color_histogram.length + descriptor.lbp_histogram.length + 25} dimensions
-                </span>
+
+              {loading && !descriptor ? (
+                <div className="detail-loading">
+                  <span aria-hidden="true" className="spinner" />
+                  <p className="hint">Calcul des descripteurs…</p>
+                </div>
+              ) : descriptor ? (
+                <DescriptorView descriptors={descriptor} />
+              ) : (
+                <p className="hint">Les descripteurs n’ont pas pu être chargés.</p>
               )}
+            </section>
+          )}
+
+          {activeTab === "transform" && (
+            <div aria-labelledby="detail-tab-transform" className="detail-tab-content" id="detail-panel-transform" role="tabpanel">
+              <TransformPanel
+                image={image}
+                onChanged={async (created) => {
+                  setDerived(created);
+                  await onChanged();
+                }}
+                showStatus={showStatus}
+              />
             </div>
+          )}
 
-            {loading && !descriptor ? (
-              <div className="detail-loading">
-                <span aria-hidden="true" className="spinner" />
-                <p className="hint">Calcul des descripteurs…</p>
-              </div>
-            ) : descriptor ? (
-              <DescriptorView descriptors={descriptor} />
-            ) : (
-              <p className="hint">Les descripteurs n’ont pas pu être chargés.</p>
-            )}
-          </section>
-
-          <TransformPanel
-            image={image}
-            onChanged={async (created) => {
-              setDerived(created);
-              await onChanged();
-            }}
-            showStatus={showStatus}
-          />
-
-          <BackgroundAnalysis image={image} />
+          {activeTab === "background" && (
+            <div aria-labelledby="detail-tab-background" className="detail-tab-content" id="detail-panel-background" role="tabpanel">
+              <BackgroundAnalysis image={image} />
+            </div>
+          )}
 
           {derived && (
             <section className="panel derived-panel">
@@ -227,123 +282,158 @@ export default function ImageDetailPage({
 function DescriptorView({ descriptors }) {
   return (
     <div className="descriptor-view">
-      <section>
-        <h3>Histogrammes HSV et LBP</h3>
-        <div className="histogram-grid">
-          {HISTOGRAM_BLOCKS.map(([label, start, end, color]) => (
-            <figure key={label}>
-              <figcaption>{label}</figcaption>
-              <Histogram color={color} values={descriptors.color_histogram.slice(start, end)} />
+      <section className="descriptor-histograms">
+        <div className="descriptor-section-heading">
+          <div>
+            <h3>Répartition des couleurs</h3>
+            <p className="hint">Chaque barre représente la fréquence d’une plage de valeurs.</p>
+          </div>
+          <span className="chart-units">16 classes par canal</span>
+        </div>
+        <div className="color-histogram-grid">
+          {HISTOGRAM_BLOCKS.map(([label, start, end, color, channel]) => (
+            <figure className="histogram-card" key={label}>
+              <figcaption>
+                <span className="histogram-key" style={{ "--histogram-color": color }}>{channel}</span>
+                <span>{label}</span>
+              </figcaption>
+              <Histogram
+                color={color}
+                label={`${label} HSV`}
+                values={descriptors.color_histogram.slice(start, end)}
+              />
+              <p className="chart-axis-note">Valeurs faibles <span>→</span> valeurs fortes</p>
             </figure>
           ))}
-          <figure>
-            <figcaption>LBP</figcaption>
-            <Histogram color="#6d67a8" values={descriptors.lbp_histogram} />
-          </figure>
         </div>
+        <figure className="histogram-card histogram-card-wide">
+          <figcaption>
+            <span className="histogram-key" style={{ "--histogram-color": "#7771bd" }}>LBP</span>
+            <span>Motifs de texture</span>
+            <span className="chart-units">256 motifs</span>
+          </figcaption>
+          <Histogram color="#7771bd" label="Histogramme des motifs LBP" values={descriptors.lbp_histogram} />
+          <p className="chart-axis-note">Motif local 0 <span>→</span> motif local 255</p>
+        </figure>
       </section>
 
-      <section>
-        <h3>Moments de couleur</h3>
-        <dl className="metric-grid">
-          {descriptors.color_moments.map((value, index) => (
-            <div key={`moment-${index}`}>
-              <dt>{MOMENT_LABELS[index]}</dt>
-              <dd>{Number(value).toFixed(4)}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      <section>
-        <h3>Texture GLCM</h3>
-        <dl className="metric-grid">
-          {descriptors.glcm.map((value, index) => (
-            <div key={GLCM_LABELS[index]}>
-              <dt>{GLCM_LABELS[index]}</dt>
-              <dd>{Number(value).toFixed(4)}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-
-      <section>
-        <h3>Couleurs dominantes</h3>
-        <div className="dominant-colors">
-          {[0, 1, 2].map((index) => {
-            const rgb = descriptors.dominant_colors.slice(index * 3, index * 3 + 3);
-            const proportion = descriptors.dominant_colors[9 + index];
-            const color = `rgb(${rgb.map((value) => Math.round(value * 255)).join(" ")})`;
-            return (
-              <div className="dominant-color" key={index}>
-                <span aria-hidden="true" className="swatch" style={{ background: color }} />
-                <span>{color}</span>
-                <strong>{Math.round(proportion * 100)} %</strong>
+      <div className="descriptor-info-grid">
+        <section className="descriptor-info-card descriptor-moments-card">
+          <div className="descriptor-section-heading"><h3>Moments de couleur</h3><span className="chart-units">RGB</span></div>
+          <dl className="metric-grid">
+            {descriptors.color_moments.map((value, index) => (
+              <div key={`moment-${index}`}>
+                <dt>{MOMENT_LABELS[index]}</dt>
+                <dd>{Number(value).toFixed(4)}</dd>
               </div>
-            );
-          })}
-        </div>
-      </section>
+            ))}
+          </dl>
+        </section>
 
-      {descriptors.salient_color && (
-        <section>
-          <h3>Couleur d’accent la plus vive</h3>
-          <p className="hint">
-            La teinte est choisie selon sa saturation moyenne, et non sa fréquence.
-            Le pourcentage indique la part de l’image couverte par cette teinte.
-          </p>
+        <section className="descriptor-info-card">
+          <div className="descriptor-section-heading"><h3>Texture GLCM</h3><span className="chart-units">4 mesures</span></div>
+          <dl className="metric-grid">
+            {descriptors.glcm.map((value, index) => (
+              <div key={GLCM_LABELS[index]}>
+                <dt>{GLCM_LABELS[index]}</dt>
+                <dd>{Number(value).toFixed(4)}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        <section className="descriptor-info-card">
+          <div className="descriptor-section-heading"><h3>Couleurs dominantes</h3><span className="chart-units">par surface</span></div>
           <div className="dominant-colors">
-            {(() => {
-              const values = descriptors.salient_color;
-              const rgb = values.slice(0, 3);
+            {[0, 1, 2].map((index) => {
+              const rgb = descriptors.dominant_colors.slice(index * 3, index * 3 + 3);
+              const proportion = descriptors.dominant_colors[9 + index];
               const color = `rgb(${rgb.map((value) => Math.round(value * 255)).join(" ")})`;
               return (
-                <div className="dominant-color">
+                <div className="dominant-color" key={index}>
                   <span aria-hidden="true" className="swatch" style={{ background: color }} />
                   <span>{color}</span>
-                  <strong>{Math.round(values[3] * 100)} %</strong>
+                  <strong>{Math.round(proportion * 100)} %</strong>
                 </div>
               );
-            })()}
+            })}
           </div>
         </section>
-      )}
+
+        {descriptors.salient_color && (
+          <section className="descriptor-info-card">
+            <div className="descriptor-section-heading"><h3>Couleur d’accent</h3><span className="chart-units">teinte vive</span></div>
+            <p className="hint accent-color-hint">Teinte la plus vive détectée sur le sujet si le masque est fiable; le pourcentage indique sa part dans l’image.</p>
+            <div className="dominant-colors">
+              {(() => {
+                const values = descriptors.salient_color;
+                const rgb = values.slice(0, 3);
+                const color = `rgb(${rgb.map((value) => Math.round(value * 255)).join(" ")})`;
+                return (
+                  <div className="dominant-color">
+                    <span aria-hidden="true" className="swatch" style={{ background: color }} />
+                    <span>{color}</span>
+                    <strong>{Math.round(values[3] * 100)} %</strong>
+                  </div>
+                );
+              })()}
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }
 
-function Histogram({ color, values }) {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const context = canvas?.getContext("2d");
-    if (!context) return;
-    const max = Math.max(...values, 1e-8);
-    const barWidth = canvas.width / values.length;
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = "#edf3f5";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = color;
-    values.forEach((value, index) => {
-      const barHeight = (value / max) * (canvas.height - 6);
-      context.fillRect(
-        index * barWidth + 1,
-        canvas.height - barHeight,
-        Math.max(1, barWidth - 2),
-        barHeight,
-      );
-    });
-  }, [color, values]);
-
+function Histogram({ color, label, values }) {
+  const width = 480;
+  const height = 176;
+  const plot = { left: 42, top: 12, right: 10, bottom: 28 };
+  const plotWidth = width - plot.left - plot.right;
+  const plotHeight = height - plot.top - plot.bottom;
+  const max = Math.max(...values, 1e-8);
+  const barStep = plotWidth / values.length;
+  const barWidth = Math.max(1, barStep * (values.length > 64 ? 0.88 : 0.7));
+  const xFor = (index) => plot.left + index * barStep + (barStep - barWidth) / 2;
+  const yFor = (value) => plot.top + plotHeight - (value / max) * plotHeight;
+  const ticks = [0, max / 2, max];
+  const xLabels = [...new Set([0, Math.round((values.length - 1) / 2), values.length - 1])];
   return (
-    <canvas
-      aria-label="Histogramme du descripteur"
-      className="descriptor-chart"
-      height="90"
-      ref={canvasRef}
-      width="300"
-    />
+    <svg aria-label={label} className="descriptor-chart" role="img" viewBox={`0 0 ${width} ${height}`}>
+      {ticks.map((tick, index) => {
+        const y = yFor(tick);
+        return (
+          <g key={`tick-${index}`}>
+            <line className="chart-gridline" x1={plot.left} x2={width - plot.right} y1={y} y2={y} />
+            <text className="chart-tick-label" textAnchor="end" x={plot.left - 7} y={y + 4}>
+              {`${(tick * 100).toFixed(tick === max ? 0 : 1)}%`}
+            </text>
+          </g>
+        );
+      })}
+      <line className="chart-axis" x1={plot.left} x2={width - plot.right} y1={plot.top + plotHeight} y2={plot.top + plotHeight} />
+      {values.map((value, index) => {
+        const y = yFor(value);
+        return (
+          <rect
+            fill={color}
+            height={Math.max(0, plot.top + plotHeight - y)}
+            key={`bar-${index}`}
+            rx={values.length > 64 ? 0 : 2}
+            width={barWidth}
+            x={xFor(index)}
+            y={y}
+          >
+            <title>{`Bin ${index}: ${(value * 100).toFixed(2)} %`}</title>
+          </rect>
+        );
+      })}
+      {xLabels.map((tick) => (
+        <text className="chart-tick-label" key={`x-${tick}`} textAnchor="middle" x={plot.left + (tick + 0.5) * barStep} y={height - 6}>
+          {tick}
+        </text>
+      ))}
+    </svg>
   );
 }
 

@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -31,7 +32,7 @@ def test_extract_features_handles_tiny_images() -> None:
     assert descriptor.dominant_colors[-3:].tolist() == [1.0, 0.0, 0.0]
 
 
-def test_normalizer_reuses_corpus_parameters_and_preserves_histograms() -> None:
+def test_normalizer_reuses_corpus_parameters_and_uses_hellinger_histograms() -> None:
     vectors = [
         extract_features(Image.new("RGB", (12, 12), color)).vector
         for color in ((255, 0, 0), (0, 255, 0), (0, 0, 255))
@@ -40,7 +41,8 @@ def test_normalizer_reuses_corpus_parameters_and_preserves_histograms() -> None:
     transformed = normalizer.transform(vectors)
 
     assert transformed.shape == (3, FEATURE_DIMENSION)
-    assert abs(float(transformed[0, COLOR_HISTOGRAM_SLICE][:16].sum()) - 1.0) < 1e-6
+    assert abs(float(np.square(transformed[0, COLOR_HISTOGRAM_SLICE][:16]).sum()) - 1.0) < 1e-6
+    assert abs(float(np.square(transformed[0, LBP_SLICE]).sum()) - 1.0) < 1e-6
     assert (transformed == transformed).all()
 
 def test_extract_features_modes_keep_the_vector_shape() -> None:

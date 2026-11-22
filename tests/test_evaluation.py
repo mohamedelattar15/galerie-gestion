@@ -1,9 +1,12 @@
 from pathlib import Path
 
+import numpy as np
+import pytest
 from PIL import Image
 
+from backend.domain.features import FEATURE_DIMENSION
 from backend.services.evaluation import evaluate_fre, evaluate_multiple_seeds
-from backend.services.indexing import build_index
+from backend.services.indexing import build_index, load_index
 
 
 def _make_dataset(root: Path, categories: dict[str, list[tuple[int, int, int]]]) -> Path:
@@ -39,6 +42,21 @@ def test_evaluate_fre_reports_baseline_and_iterations(tmp_path: Path) -> None:
     assert report["fre_iterations"][0]["feedback_applied"] == 3
     assert report["fre_iterations"][1]["feedback_applied"] == 3
     assert report["fre_iterations"][1]["recall_at_k"] == 0.5
+
+
+def test_load_index_rejects_index_without_current_histogram_transform(tmp_path: Path) -> None:
+    stale_index = tmp_path / "stale.npz"
+    np.savez_compressed(
+        stale_index,
+        paths=np.asarray(["objects/one.png"]),
+        labels=np.asarray(["objects"]),
+        vectors=np.zeros((1, FEATURE_DIMENSION), dtype=np.float32),
+        mean=np.zeros(FEATURE_DIMENSION - 48 - 256, dtype=np.float32),
+        scale=np.ones(FEATURE_DIMENSION - 48 - 256, dtype=np.float32),
+    )
+
+    with pytest.raises(ValueError, match="ancienne normalisation"):
+        load_index(stale_index)
 
 
 def test_evaluate_fre_skips_queries_without_two_positive_examples(tmp_path: Path) -> None:

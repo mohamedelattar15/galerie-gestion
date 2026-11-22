@@ -134,7 +134,7 @@ Image A :
 
 Les valeurs numériques extraites constituent la représentation de l'image dans l'espace des caractéristiques.
 
-Il est nécessaire de normaliser les caractéristiques afin d'éviter qu'un descripteur ayant des valeurs numériques plus grandes domine artificiellement les autres.
+Il est nécessaire de normaliser les caractéristiques afin d'éviter qu'un descripteur ayant des valeurs numériques plus grandes domine artificiellement les autres. Les histogrammes de couleurs et LBP sont des distributions : le projet applique la racine carrée de Hellinger avant la distance euclidienne. Les autres caractéristiques scalaires sont standardisées avec les paramètres appris sur l'index. Cette transformation améliore l'échelle des histogrammes sans ajouter de nouveau descripteur au vecteur FRE.
 
 ### 3.2. Calcul de similarité
 
@@ -1032,10 +1032,10 @@ Exemple de tableau pour présenter les résultats expérimentaux :
 
 | Méthode | Precision@10 | Recall@10 |
 |---|---:|---:|
-| Recherche simple | 0,3336 ± 0,0206 | 0,00669 ± 0,00041 |
-| FRE - Itération 1 | 0,4610 ± 0,0365 | 0,00924 ± 0,00073 |
-| FRE - Itération 2 | 0,4842 ± 0,0387 | 0,00970 ± 0,00077 |
-| FRE - Itération 3 | 0,4844 ± 0,0405 | 0,00971 ± 0,00081 |
+| Recherche simple | 0,3470 ± 0,0198 | 0,00695 ± 0,00040 |
+| FRE - Itération 1 | 0,4996 ± 0,0368 | 0,01001 ± 0,00074 |
+| FRE - Itération 2 | 0,5228 ± 0,0382 | 0,01048 ± 0,00077 |
+| FRE - Itération 3 | 0,5256 ± 0,0393 | 0,01053 ± 0,00079 |
 
 Ces valeurs proviennent de cinq tirages reproductibles de 100 requêtes (graines 42 à 46) sur GHIM-10K, avec \(N=10\) et une fenêtre de feedback de 10 résultats, identique à ce que l'interface affiche. Le détail du protocole est décrit dans `README_IMPLEMENTATION.md`.
 

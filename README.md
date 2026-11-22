@@ -10,6 +10,7 @@ Le groupe **G13** travaille sur **Feature Relevance Estimation (FRE)** : une mé
 
 - Gérer une galerie d'images après authentification : import, téléchargement, suppression, catégories et transformations (recadrage, redimensionnement, rotation et retournement).
 - Extraire les descripteurs d'une image ou d'un lot d'images, puis les visualiser.
+- Comparer les histogrammes de couleur et LBP avec la distance de Hellinger, adaptée aux distributions de fréquences.
 - Fournir une API REST avec Python, Flask et Flask-RESTful.
 - Rechercher les images similaires à une image requête.
 - Améliorer les résultats par des itérations de feedback FRE.

@@ -16,7 +16,7 @@ from backend.domain.fre_config import (
     DEFAULT_SEPARABILITY_THRESHOLD,
 )
 from backend.domain.models import DatasetIndex
-from backend.domain.normalization import FeatureNormalizer
+from backend.domain.normalization import FEATURE_TRANSFORM_VERSION, FeatureNormalizer
 
 SUPPORTED_EXTENSIONS = {".bmp", ".jpeg", ".jpg", ".png", ".webp"}
 
@@ -80,6 +80,7 @@ def build_index(
                 mean=normalizer.mean,
                 scale=normalizer.scale,
                 descriptor_mode=np.asarray(descriptor_mode, dtype=np.str_),
+                feature_transform=np.asarray(FEATURE_TRANSFORM_VERSION, dtype=np.str_),
             )
         temporary_path.replace(output_path)
     finally:
@@ -98,6 +99,11 @@ def load_index(index_path: Path) -> DatasetIndex:
     if not index_path.is_file():
         raise FileNotFoundError(f"Le fichier d'index n'existe pas : {index_path}")
     with np.load(index_path, allow_pickle=False) as saved:
+        if "feature_transform" not in saved.files or str(saved["feature_transform"]) != FEATURE_TRANSFORM_VERSION:
+            raise ValueError(
+                "L'index utilise une ancienne normalisation. Reconstruisez-le avec "
+                "backend.services.indexing avant de lancer l'application."
+            )
         paths = tuple(str(value) for value in saved["paths"].tolist())
         labels = tuple(str(value) for value in saved["labels"].tolist())
         vectors = np.asarray(saved["vectors"], dtype=np.float32)

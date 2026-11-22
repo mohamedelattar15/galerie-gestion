@@ -7,9 +7,16 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from backend.domain.features import FEATURE_DIMENSION, STANDARDIZED_SLICE
+from backend.domain.features import (
+    COLOR_HISTOGRAM_SLICE,
+    FEATURE_DIMENSION,
+    LBP_SLICE,
+    STANDARDIZED_SLICE,
+)
 
 FloatArray = NDArray[np.float32]
+FEATURE_TRANSFORM_VERSION = "hellinger-v1"
+HISTOGRAM_SLICES = (COLOR_HISTOGRAM_SLICE, LBP_SLICE)
 
 
 @dataclass(frozen=True)
@@ -41,6 +48,11 @@ class FeatureNormalizer:
             raise ValueError("Les vecteurs doivent contenir uniquement des valeurs finies.")
 
         result = values.copy()
+        for histogram_slice in HISTOGRAM_SLICES:
+            histogram = result[..., histogram_slice]
+            if np.any(histogram < 0):
+                raise ValueError("Les histogrammes doivent contenir des valeurs positives ou nulles.")
+            result[..., histogram_slice] = np.sqrt(histogram)
         result[..., STANDARDIZED_SLICE] = (
             result[..., STANDARDIZED_SLICE] - self.mean
         ) / self.scale

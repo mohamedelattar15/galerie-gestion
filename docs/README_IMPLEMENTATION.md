@@ -176,7 +176,7 @@ Ce module extrait les descripteurs visuels nécessaires à la recherche.
 - GLCM : Contrast, Correlation, Energy, Homogeneity.
 - LBP : histogramme des motifs binaires locaux.
 
-Les histogrammes de couleur et l'histogramme LBP sont normalisés pour que la somme de leurs bins soit égale à 1. Les autres composantes numériques sont standardisées avec la moyenne et l'écart-type calculés sur la base indexée. Les mêmes paramètres sont appliqués à la requête et aux images retournées en feedback; ils ne sont pas recalculés séparément pour chaque image.
+Les histogrammes de couleur et l'histogramme LBP sont des distributions de fréquences. Avant le calcul de distance, leurs bins subissent une transformation racine carrée (Hellinger), adaptée à la comparaison de distributions et qui augmente leur contribution utile sans les mettre à l'échelle des descripteurs scalaires. Les autres composantes numériques sont standardisées avec la moyenne et l'écart-type calculés sur la base indexée. Les mêmes transformations et paramètres sont appliqués à la requête et aux images retournées en feedback; ils ne sont pas recalculés séparément pour chaque image. L'index enregistre la version de cette transformation et doit être reconstruit si elle change.
 
 Les vecteurs normalisés sont concaténés dans un ordre fixe. La représentation des couleurs dominantes doit garder une taille et un ordre cohérents d'une image à l'autre.
 
@@ -594,14 +594,14 @@ Les résultats doivent être mesurés sur GHIM-10K et interprétés après exéc
 
 ### Résultat de la première évaluation multi-graines
 
-L'évaluation a utilisé cinq tirages reproductibles de 100 requêtes chacun (graines 42 à 46), \(N=10\), une fenêtre de feedback de 10 résultats — identique à ce que l'interface affiche par défaut — et jusqu'à cinq positifs simulés par itération. Le feedback FRE a été appliqué à 83–95 requêtes sur 100 selon le tirage; les autres requêtes n'avaient pas deux positifs parmi les dix résultats visibles. Le tableau indique la moyenne et l'écart-type de population des métriques moyennes des cinq tirages.
+Après application de la transformation de Hellinger aux histogrammes, l'évaluation a utilisé cinq tirages reproductibles de 100 requêtes chacun (graines 42 à 46), \(N=10\), une fenêtre de feedback de 10 résultats — identique à ce que l'interface affiche par défaut — et jusqu'à cinq positifs simulés par itération. Le feedback FRE a été appliqué à 61–77 requêtes sur 100 selon le tirage; les autres requêtes n'avaient pas deux positifs parmi les dix résultats visibles. Le tableau indique la moyenne et l'écart-type de population des métriques moyennes des cinq tirages.
 
 | Classement | Précision@10 (moyenne ± écart-type) | Rappel@10 (moyenne ± écart-type) |
 |---|---:|---:|
-| CBIR initial | 0,3336 ± 0,0206 | 0,00669 ± 0,00041 |
-| Après FRE — itération 1 | 0,4610 ± 0,0365 | 0,00924 ± 0,00073 |
-| Après FRE — itération 2 | 0,4842 ± 0,0387 | 0,00970 ± 0,00077 |
-| Après FRE — itération 3 | 0,4844 ± 0,0405 | 0,00971 ± 0,00081 |
+| CBIR initial | 0,3470 ± 0,0198 | 0,00695 ± 0,00040 |
+| Après FRE — itération 1 | 0,4996 ± 0,0368 | 0,01001 ± 0,00074 |
+| Après FRE — itération 2 | 0,5228 ± 0,0382 | 0,01048 ± 0,00077 |
+| Après FRE — itération 3 | 0,5256 ± 0,0393 | 0,01053 ± 0,00079 |
 
 Une variante avec une fenêtre de 50 résultats examinés, qui simule un oracle, atteint 0,6036 de précision à l'itération 1. Elle surestime ce qu'un utilisateur peut juger dans l'interface et ne doit pas être présentée comme le résultat principal.
 

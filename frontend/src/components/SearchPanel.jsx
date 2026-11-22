@@ -19,6 +19,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
   const [results, setResults] = useState([]);
   const [feedback, setFeedback] = useState({});
   const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(null);
   const [corpus, setCorpus] = useState(null);
   const [mode, setMode] = useState("global");
   const [availableModes, setAvailableModes] = useState(["global"]);
@@ -72,6 +73,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
     formData.append("top_k", String(topK));
     formData.append("descriptor_mode", mode);
     setLoading(true);
+    setLoadingAction("search");
     try {
       const result = await api("/api/search", { method: "POST", body: formData });
       setSessionId(result.session_id);
@@ -84,6 +86,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
       showStatus(error.message, true);
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   }
 
@@ -96,6 +99,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
       if (choice === "non_relevant") nonRelevantIds.push(Number(imageId));
     }
     setLoading(true);
+    setLoadingAction("feedback");
     try {
       const result = await api("/api/search/feedback", {
         method: "POST",
@@ -105,7 +109,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
           relevant_ids: relevantIds,
           non_relevant_ids: nonRelevantIds,
           top_k: Number(topK),
-            descriptor_mode: mode,
+          descriptor_mode: mode,
         }),
       });
       setIteration(result.iteration);
@@ -118,6 +122,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
       showStatus(error.message, true);
     } finally {
       setLoading(false);
+      setLoadingAction(null);
     }
   }
 
@@ -141,7 +146,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
           <span className="method-tag">FRE · G13</span>
         </div>
 
-        <form className="stack" onSubmit={search}>
+        <form className="stack search-form" onSubmit={search}>
           {galleryImage ? (
             <div className="gallery-query">
               <img alt={galleryImage.filename} src={galleryImage.file_url} />
@@ -205,7 +210,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
             type="submit"
           >
             <Sparkles size={16} />
-            {loading && iteration === 0 ? "Recherche…" : "Rechercher"}
+            {loadingAction === "search" ? "Recherche en cours…" : "Lancer la recherche"}
           </button>
           {sessionId && (
             <button className="button button-quiet" onClick={reset} type="button">
@@ -214,15 +219,25 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
           )}
         </form>
 
-        <p className="hint">
-          <strong>Catalogue de recherche : GHIM-10K</strong>
-          {corpus
-            ? ` · ${corpus.images.toLocaleString("fr-FR")} images · ${corpus.categories} catégories`
-            : " · 10 000 images · 20 catégories"}
-          <br />
-          Vos images de galerie servent de requête; les résultats proviennent du catalogue.
-          Marquez au moins deux images pertinentes pour appliquer FRE.
-        </p>
+        <details className="search-guide">
+          <summary>Étapes de recherche et retour FRE</summary>
+          <div className="search-guide-body">
+            <p className="hint">
+              Catalogue : <strong>GHIM-10K</strong>
+              {corpus
+                ? ` · ${corpus.images.toLocaleString("fr-FR")} images · ${corpus.categories} catégories`
+                : " · 10 000 images · 20 catégories"}
+            </p>
+            <ol>
+              <li>Choisissez une image pour lancer la recherche visuelle.</li>
+              <li>Marquez au moins deux résultats comme pertinentes.</li>
+              <li>Appliquez FRE pour ajuster le classement.</li>
+            </ol>
+            <p className="search-guide-note">
+              Les votes « non pertinente » sont enregistrés, mais FRE pour G13 met à jour les poids à partir des images pertinentes.
+            </p>
+          </div>
+        </details>
       </aside>
 
       <section className="search-results">
@@ -239,8 +254,16 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
         ) : (
           <>
             <div className="results-head">
-              <span className="method-tag">Itération {iteration}</span>
-              <span className="hint">{results.length} résultats</span>
+              <div className="results-title">
+                <p className="eyebrow">Résultats de recherche</p>
+                <h2>Images similaires</h2>
+                <p className="hint">Classement par contenu visuel · la distance la plus faible indique l’image la plus proche.</p>
+              </div>
+              <div className="results-badges">
+                <span className="method-tag">{iteration === 0 ? "Recherche initiale" : `Itération FRE ${iteration}`}</span>
+                <span className="result-count">{results.length} / {topK} résultats</span>
+                <span className="result-mode">{MODE_LABELS[mode] ?? mode}</span>
+              </div>
             </div>
 
             <div className={`result-grid${loading ? " is-loading" : ""}`}>
@@ -256,16 +279,20 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
             </div>
 
             <div className="feedback-bar">
-              <div className="feedback-counts">
-                <span>
-                  <ThumbsUp size={15} /> {relevantCount}
-                </span>
-                <span>
-                  <ThumbsDown size={15} /> {nonRelevantCount}
-                </span>
-                {relevantCount < 2 && (
-                  <span className="hint">Au moins 2 pertinentes requises</span>
-                )}
+              <div className="feedback-progress">
+                <div className="feedback-counts">
+                  <span className="feedback-positive-count">
+                    <ThumbsUp size={15} /> {relevantCount} <b>pertinente{relevantCount > 1 ? "s" : ""}</b>
+                  </span>
+                  <span className="feedback-negative-count">
+                    <ThumbsDown size={15} /> {nonRelevantCount} <b>non pertinente{nonRelevantCount > 1 ? "s" : ""}</b>
+                  </span>
+                </div>
+                <div aria-live="polite" className="feedback-instruction">
+                  {relevantCount < 2
+                    ? `Sélectionnez encore ${2 - relevantCount} image${2 - relevantCount > 1 ? "s" : ""} pertinente${2 - relevantCount > 1 ? "s" : ""} pour activer FRE.`
+                    : "Votre sélection est prête pour l’itération FRE."}
+                </div>
               </div>
               <button
                 className="button button-primary"
@@ -274,9 +301,7 @@ export default function SearchPanel({ galleryImage, onClearGalleryImage, showSta
                 type="button"
               >
                 <Check size={16} />
-                {loading && iteration > 0
-                  ? "Mise à jour FRE…"
-                  : `Appliquer FRE (${relevantCount})`}
+                {loadingAction === "feedback" ? "Mise à jour du classement…" : "Appliquer FRE"}
               </button>
             </div>
           </>
@@ -305,9 +330,11 @@ function ResultCard({ result, rank, choice, onToggle }) {
       <div className="result-body">
         <div className="result-meta">
           <strong title={result.path}>{result.category}</strong>
-          <small>d = {Number(result.distance).toFixed(4)}</small>
+          <small title="Une distance plus faible indique une image plus proche de la requête.">
+            Distance {Number(result.distance).toFixed(4)}
+          </small>
         </div>
-        <div aria-label={`Feedback pour ${result.path}`} className="vote">
+        <div aria-label={`Évaluer la pertinence de ${result.path}`} className="vote">
           <button
             aria-pressed={choice === "relevant"}
             className={choice === "relevant" ? "is-on-good" : ""}
@@ -317,13 +344,12 @@ function ResultCard({ result, rank, choice, onToggle }) {
             <ThumbsUp size={15} /> Pertinente
           </button>
           <button
-            aria-label="Non pertinente"
             aria-pressed={choice === "non_relevant"}
             className={choice === "non_relevant" ? "is-on-bad" : ""}
             onClick={() => onToggle(result.id, "non_relevant")}
             type="button"
           >
-            <ThumbsDown size={15} />
+            <ThumbsDown size={15} /> Non pertinente
           </button>
         </div>
       </div>
