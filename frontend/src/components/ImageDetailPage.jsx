@@ -287,10 +287,10 @@ function DescriptorView({ descriptors }) {
 
       {descriptors.salient_color && (
         <section>
-          <h3>Couleur la plus saturée</h3>
+          <h3>Couleur d’accent la plus vive</h3>
           <p className="hint">
-            Les dominantes privilégient la surface : un détail vif minoritaire y échappe.
-            Cette couleur signale la teinte la plus saturée de l’image.
+            La teinte est choisie selon sa saturation moyenne, et non sa fréquence.
+            Le pourcentage indique la part de l’image couverte par cette teinte.
           </p>
           <div className="dominant-colors">
             {(() => {

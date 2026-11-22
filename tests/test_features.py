@@ -84,6 +84,43 @@ def test_salient_colour_finds_a_small_vivid_subject() -> None:
     assert descriptor.salient_color is not None
     red, green, blue, proportion = descriptor.salient_color.tolist()
     assert red > 0.6 and green < 0.3 and blue < 0.3
+    assert proportion == pytest.approx(36 / 1600)
+
+
+def test_salient_colour_prefers_vivid_accent_over_more_frequent_green() -> None:
+    image = Image.new("RGB", (40, 40), (48, 130, 40))
+    image.paste(Image.new("RGB", (10, 12), (240, 20, 30)), (15, 14))
+
+    descriptor = extract_features(image)
+
+    assert descriptor.salient_color is not None
+    red, green, blue, proportion = descriptor.salient_color.tolist()
+    assert red > 0.8 and green < 0.2 and blue < 0.2
+    assert proportion == pytest.approx(120 / 1600)
+
+
+def test_salient_colour_uses_reliable_subject_mask() -> None:
+    image = Image.new("RGB", (40, 40), (0, 255, 0))
+    image.paste(Image.new("RGB", (16, 16), (220, 90, 90)), (12, 12))
+
+    descriptor = extract_features(image)
+
+    assert descriptor.salient_color is not None
+    red, green, blue, proportion = descriptor.salient_color.tolist()
+    assert red > 0.75 and green < 0.4 and blue < 0.4
+    assert proportion == pytest.approx(256 / 1600)
+
+
+def test_salient_colour_groups_red_hues_across_hsv_boundary() -> None:
+    image = Image.new("RGB", (20, 20))
+    image.paste(Image.new("RGB", (10, 20), (255, 0, 16)), (0, 0))
+    image.paste(Image.new("RGB", (10, 20), (255, 16, 0)), (10, 0))
+
+    descriptor = extract_features(image)
+
+    assert descriptor.salient_color is not None
+    red, green, blue, proportion = descriptor.salient_color.tolist()
+    assert red > 0.9 and green < 0.1 and blue < 0.1
     assert proportion == pytest.approx(1.0)
 
 

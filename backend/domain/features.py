@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from PIL import Image
 
+from backend.domain.fre_config import DEFAULT_SEPARABILITY_THRESHOLD
 from backend.domain.segmentation.blocks import pixel_weights
 from backend.domain.segmentation.mask import DEFAULT_TOLERANCE as DEFAULT_MASK_TOLERANCE
 from backend.domain.segmentation.mask import safe_object_mask
@@ -176,14 +177,17 @@ def _dominant_colors(rgb_image: Image.Image) -> np.ndarray:
 
 
 def _salient_color(rgb_image: Image.Image) -> np.ndarray | None:
-    """Return the most saturated colour cluster and its proportion.
+    """Return a vivid accent hue from a reliable subject mask or the full image.
 
     Dominant colours are chosen by surface, so a small but vivid subject (a red
     helicopter on a blue sky) is never reported. This helper looks for the
-    opposite: the colour that stands out the most, whatever its area.
+    opposite: the hue with the highest mean saturation, ignoring tiny noise
+    regions. When the border-based subject mask passes the same reliability
+    checks as adaptive descriptors, the background is excluded. Otherwise the
+    full image is used. Hue bins are grouped circularly to keep reds together.
 
-    The result is ``[r, g, b, proportion]`` in the 0..1 range, or ``None`` when
-    the image has no clearly saturated region.
+    The result is ``[r, g, b, proportion_of_image]`` in the 0..1 range, or
+    ``None`` when the image has no clearly saturated region.
     """
     hsv = np.asarray(rgb_image.convert("HSV"), dtype=np.uint8)
     saturation = hsv[:, :, 1].astype(np.float32) / 255.0
@@ -191,30 +195,61 @@ def _salient_color(rgb_image: Image.Image) -> np.ndarray | None:
     if float(saturated.mean()) < SALIENT_MIN_FRACTION:
         return None
 
-    hue = hsv[:, :, 0][saturated]
-    weights = saturation[saturated]
-    histogram = np.bincount(
-        hue // (256 // SALIENT_HUE_BINS),
-        weights=weights,
-        minlength=SALIENT_HUE_BINS,
-    )
-    peak = int(histogram.argmax())
-    if histogram[peak] <= 0:
-        return None
-
-    lower = peak * (256 // SALIENT_HUE_BINS)
-    upper = lower + (256 // SALIENT_HUE_BINS)
-    hue_selected = (hue >= lower) & (hue < upper)
-    if not hue_selected.any():
-        return None
-
+    hue = hsv[:, :, 0]
+    bin_indices = hue // (256 // SALIENT_HUE_BINS)
     rgb = np.asarray(rgb_image, dtype=np.float32) / 255.0
-    selected_pixels = rgb[saturated][hue_selected]
-    mean_color = selected_pixels.mean(axis=0)
-    proportion = float(hue_selected.sum()) / float(saturated.sum())
-    return np.concatenate((mean_color, np.asarray([proportion], dtype=np.float32))).astype(
-        np.float32
-    )
+    subject_mask = safe_object_mask(rgb, tolerance=DEFAULT_MASK_TOLERANCE)
+    if subject_mask is not None and has_distinct_background(
+        rgb, threshold=DEFAULT_SEPARABILITY_THRESHOLD
+    ):
+        candidate_regions = (subject_mask, np.ones(saturated.shape, dtype=bool))
+    else:
+        candidate_regions = (np.ones(saturated.shape, dtype=bool),)
+
+    for region in candidate_regions:
+        eligible_pixels = saturated & region
+        if not eligible_pixels.any():
+            continue
+
+        counts = np.bincount(
+            bin_indices[eligible_pixels], minlength=SALIENT_HUE_BINS
+        )
+        saturation_sums = np.bincount(
+            bin_indices[eligible_pixels],
+            weights=saturation[eligible_pixels],
+            minlength=SALIENT_HUE_BINS,
+        )
+
+        # Score each hue together with its circular neighbours. In particular,
+        # hue 0 and hue 255 are adjacent reds, not opposite ends of the palette.
+        group_counts = np.zeros(SALIENT_HUE_BINS, dtype=np.int64)
+        group_saturation = np.zeros(SALIENT_HUE_BINS, dtype=np.float64)
+        for offset in (-1, 0, 1):
+            group_counts += np.roll(counts, offset)
+            group_saturation += np.roll(saturation_sums, offset)
+
+        minimum_pixels = max(1, int(np.ceil(region.sum() * SALIENT_MIN_FRACTION)))
+        eligible_groups = group_counts >= minimum_pixels
+        if not eligible_groups.any():
+            continue
+        mean_saturation = np.divide(
+            group_saturation,
+            group_counts,
+            out=np.zeros_like(group_saturation),
+            where=group_counts > 0,
+        )
+        peak = int(np.where(eligible_groups, mean_saturation, -1.0).argmax())
+        selected_bins = {(peak + offset) % SALIENT_HUE_BINS for offset in (-1, 0, 1)}
+        hue_selected = eligible_pixels & np.isin(bin_indices, tuple(selected_bins))
+        if not hue_selected.any():
+            continue
+
+        mean_color = rgb[hue_selected].mean(axis=0)
+        proportion = float(hue_selected.sum()) / float(saturated.size)
+        return np.concatenate((mean_color, np.asarray([proportion], dtype=np.float32))).astype(
+            np.float32
+        )
+    return None
 
 
 def _glcm_properties(rgb_image: Image.Image) -> np.ndarray:
