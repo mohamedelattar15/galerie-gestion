@@ -139,19 +139,27 @@ def list_images(
     category_id: int | None,
     limit: int,
     offset: int,
+    sort: str = "created_desc",
+    search: str = "",
 ) -> list[sqlite3.Row]:
-    if category_id is None:
-        query = """
-            SELECT * FROM images WHERE user_id = ?
-            ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?
-        """
-        parameters: tuple[Any, ...] = (user_id, limit, offset)
-    else:
-        query = """
-            SELECT * FROM images WHERE user_id = ? AND category_id = ?
-            ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?
-        """
-        parameters = (user_id, category_id, limit, offset)
+    order_by = {
+        "created_desc": "created_at DESC, id DESC",
+        "created_asc": "created_at ASC, id ASC",
+        "name_asc": "original_filename COLLATE NOCASE ASC, id ASC",
+    }.get(sort)
+    if order_by is None:
+        raise ValueError("sort doit être created_desc, created_asc ou name_asc.")
+    query = "SELECT * FROM images WHERE user_id = ?"
+    parameters: list[Any] = [user_id]
+    if category_id is not None:
+        query += " AND category_id = ?"
+        parameters.append(category_id)
+    if search:
+        escaped_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        query += " AND original_filename COLLATE NOCASE LIKE ? ESCAPE '\\'"
+        parameters.append(f"%{escaped_search}%")
+    query += f" ORDER BY {order_by} LIMIT ? OFFSET ?"
+    parameters.extend((limit, offset))
     return get_db().execute(query, parameters).fetchall()
 
 

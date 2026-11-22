@@ -52,10 +52,13 @@ L'application utilise une navigation latérale verticale à trois sections :
 | **Ma galerie** | Mosaïque paginée de 24 images et accès aux détails de chaque image |
 | **Importer & organiser** | Création de catégories et import d'images côte à côte |
 
-**Panneau de détails.** Cliquer sur une image ouvre un panneau latéral, sans recharger ni dérouler la page. Il contient deux onglets :
+**Panneau de détails.** Cliquer sur une image ouvre un panneau latéral, sans recharger ni dérouler la page. Il contient les descripteurs, les transformations avec aperçu avant création et l'analyse du fond :
 
 - **Descripteurs** — histogrammes HSV et LBP, moments de couleur, propriétés GLCM et couleurs dominantes avec pastilles et pourcentages.
-- **Transformations** — rotation (90°, 180°, 270°), miroir, redimensionnement et recadrage, avec les champs adaptés à chaque opération. Une copie est créée; l'originale est conservée.
+- **Transformations** — luminosité, contraste, saturation, netteté, niveaux de gris, sépia, flou, auto-contraste, rotation libre, miroir, redimensionnement avec ratio conservé et recadrage par proportions. L'aperçu est affiché avant de créer une copie; l'originale est conservée.
+- **Analyse du fond** — comparaison des couleurs du centre et des bordures, carte de différence et masque lorsque la séparation est suffisamment fiable.
+
+La galerie permet également la recherche par nom, le tri, le filtre par catégorie, la sélection multiple, le déplacement en lot, la suppression en lot et le téléchargement d'une sélection en ZIP.
 
 Le panneau se ferme par la croix, un clic sur le fond ou la touche `Échap`.
 
@@ -122,7 +125,9 @@ Les routes sont servies par Flask, que le frontend soit compilé ou lancé avec 
 
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` — authentification.
 - `GET|POST /api/categories` — liste et création des catégories; `DELETE /api/categories/<id>` — suppression d'une catégorie vide.
-- `GET|POST /api/images` — galerie et import; `GET /api/images/<id>/file` — aperçu, avec `?download=1` pour télécharger; `GET /api/images/<id>/descriptors` — calcul des descripteurs; `POST /api/images/<id>/transform` — création d'une copie transformée; `DELETE /api/images/<id>` — suppression.
+- `GET|POST /api/images` — galerie et import (`category_id`, `sort`, `q` pour filtrer/trier/rechercher); `GET /api/images/<id>/file` — aperçu, avec `?download=1` pour télécharger; `GET /api/images/<id>/descriptors` — calcul des descripteurs; `POST /api/images/<id>/transform/preview` — aperçu non enregistré; `POST /api/images/<id>/transform` — création d'une copie transformée; `DELETE /api/images/<id>` — suppression.
+- `POST /api/images/batch-delete`, `/api/images/batch-move`, `/api/images/batch-download` — opérations groupées sur les images de l'utilisateur.
+- `GET /api/images/<id>/analysis`, `/mask`, `/background-map` — analyse et visualisation de la séparation objet/fond.
 - `POST /api/features/extract` — multipart avec `image` ou plusieurs fichiers `images`.
 - `POST /api/search` — multipart avec `query` et `top_k`, ou avec `query_image_id`.
 - `POST /api/search/feedback` — JSON contenant `session_id`, au moins deux `relevant_ids`, et éventuellement des `non_relevant_ids`.

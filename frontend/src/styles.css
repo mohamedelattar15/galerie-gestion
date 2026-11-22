@@ -300,6 +300,22 @@ footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.
 .dominant-color .swatch { width: 1.5rem; height: 1.5rem; border-radius: 6px; border: 1px solid var(--line); }
 .dominant-color strong { margin-left: auto; }
 .transform-panel { display: grid; gap: 0.8rem; }
+.transform-adjustment { display: grid; gap: 0.4rem; }
+.transform-adjustment-inputs { display: grid; grid-template-columns: minmax(0, 1fr) 5rem; align-items: center; gap: 0.65rem; }
+.transform-adjustment-inputs input[type="range"] { width: 100%; accent-color: var(--accent); }
+.transform-checkbox { display: flex; align-items: center; gap: 0.45rem; }
+.transform-checkbox input { width: 1rem; height: 1rem; accent-color: var(--accent); }
+.transform-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.transform-preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+.transform-preview-grid figure { min-width: 0; margin: 0; padding: 0.5rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.transform-preview-grid img { display: block; width: 100%; max-height: 250px; border-radius: 7px; object-fit: contain; }
+.transform-preview-grid figcaption { margin-top: 0.4rem; color: var(--muted); font-size: 0.8rem; text-align: center; }
+.background-analysis-summary { display: grid; gap: 0.35rem; margin-bottom: 0.8rem; font-size: 0.85rem; }
+.background-analysis-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.7rem; }
+.background-analysis-grid figure { min-width: 0; margin: 0; padding: 0.5rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.background-analysis-grid img { display: block; width: 100%; max-height: 220px; border-radius: 7px; object-fit: contain; }
+.background-analysis-grid figcaption { margin-top: 0.4rem; color: var(--muted); font-size: 0.78rem; text-align: center; }
+.background-analysis-note { margin: 0.75rem 0 0; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
 .field-row-4 { grid-template-columns: repeat(4, 1fr); }
 .transform-panel label { min-width: 0; }
@@ -307,6 +323,7 @@ footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.
 @media (max-width: 560px) {
   .histogram-grid { grid-template-columns: 1fr; }
   .field-row-4 { grid-template-columns: 1fr 1fr; }
+  .transform-preview-grid { grid-template-columns: 1fr; }
 }
 
 /* ───────────── Application shell ───────────── */
@@ -497,6 +514,9 @@ footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.
 .gallery-bulk-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 0.5rem; }
 .gallery-filter, .move-category-field { display: grid; gap: 0.25rem; color: var(--muted); font-size: 0.8rem; }
 .gallery-filter select, .move-category-field select { min-width: 12rem; padding: 0.5rem 0.65rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: inherit; font: inherit; }
+.gallery-search { display: flex; align-items: end; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 0.8rem; }
+.gallery-search label { display: grid; flex: 1 1 16rem; gap: 0.25rem; color: var(--muted); font-size: 0.8rem; }
+.gallery-search input { min-width: 0; padding: 0.55rem 0.65rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: inherit; font: inherit; }
 .move-category-field { margin: 1rem 0; color: var(--text, var(--ink)); font-size: 0.9rem; }
 .tile-open { display: block; width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .tile-open img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--surface-2); }

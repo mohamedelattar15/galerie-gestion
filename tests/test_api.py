@@ -2,6 +2,7 @@ import sqlite3
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+from zipfile import ZipFile
 
 import numpy as np
 import pytest
@@ -9,6 +10,8 @@ from flask import Flask
 from PIL import Image
 
 from backend.app import create_app
+from backend.database.connection import get_db
+from backend.database.repositories.search_sessions import purge_old_sessions
 from backend.domain.features import FEATURE_DIMENSION
 from backend.services.indexing import build_index
 
@@ -142,6 +145,41 @@ def test_batch_descriptor_extraction_reports_invalid_images(tmp_path: Path) -> N
     assert response.json["processed"] == 1
     assert response.json["failed"] == 1
     assert "error" in response.json["results"][1]
+
+
+def test_batch_download_returns_owned_images_as_zip(tmp_path: Path) -> None:
+    app = create_app(index_path=tmp_path / "missing.npz", config=_test_config(tmp_path))
+    client = _authenticated_client(app)
+    uploaded = client.post(
+        "/api/images",
+        data={
+            "images": [
+                (BytesIO(_png_bytes((220, 20, 20))), "first.png"),
+                (BytesIO(_png_bytes((20, 220, 20))), "second.png"),
+            ]
+        },
+        content_type="multipart/form-data",
+    )
+    image_ids = [image["id"] for image in uploaded.json["results"]]
+
+    response = client.post("/api/images/batch-download", json={"image_ids": image_ids})
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/zip"
+    with ZipFile(BytesIO(response.data)) as archive:
+        assert archive.namelist() == ["1_first.png", "2_second.png"]
+        assert archive.read("1_first.png").startswith(b"\x89PNG")
+        assert archive.read("2_second.png").startswith(b"\x89PNG")
+
+    other_client = app.test_client()
+    assert other_client.post(
+        "/api/auth/register",
+        json={"username": "another-user", "password": "valid-password-456"},
+    ).status_code == 201
+    forbidden = other_client.post(
+        "/api/images/batch-download", json={"image_ids": image_ids}
+    )
+    assert forbidden.status_code == 404
 
 
 def test_search_session_persists_across_restarts_and_feedback(tmp_path: Path) -> None:
@@ -386,6 +424,268 @@ def test_upload_removes_the_stored_file_when_the_database_fails(
         )
 
     assert list(uploads.glob("*")) == []
+
+
+@pytest.mark.parametrize(
+    ("operation", "parameters"),
+    [
+        ("brightness", {"factor": 1.25}),
+        ("contrast", {"factor": 0.8}),
+        ("saturation", {"factor": 1.5}),
+        ("sharpness", {"factor": 1.2}),
+        ("grayscale", {}),
+        ("sepia", {}),
+        ("blur", {"radius": 2.5}),
+        ("autocontrast", {"cutoff": 0.5}),
+    ],
+)
+def test_photo_enhancements_create_derived_images(
+    tmp_path: Path,
+    operation: str,
+    parameters: dict[str, Any],
+) -> None:
+    app = create_app(index_path=tmp_path / "missing.npz", config=_test_config(tmp_path))
+    client = _authenticated_client(app)
+    upload = client.post(
+        "/api/images",
+        data={"image": (BytesIO(_png_bytes((130, 90, 55))), "sample.png")},
+        content_type="multipart/form-data",
+    )
+    original = upload.json["results"][0]
+    original_bytes = client.get(original["file_url"]).data
+
+    response = client.post(
+        f"/api/images/{original['id']}/transform",
+        json={"operation": operation, **parameters},
+    )
+
+    assert response.status_code == 201
+    derived = response.json
+    assert derived["parent_image_id"] == original["id"]
+    assert (derived["width"], derived["height"]) == (original["width"], original["height"])
+    assert derived["filename"].startswith(f"sample_{operation}")
+    transformed_bytes = client.get(derived["file_url"]).data
+    assert Image.open(BytesIO(transformed_bytes)).format == "PNG"
+    assert client.get(original["file_url"]).data == original_bytes
+
+
+@pytest.mark.parametrize(
+    ("operation", "parameters"),
+    [
+        ("brightness", {"factor": 2.1}),
+        ("contrast", {"factor": True}),
+        ("blur", {"radius": 21}),
+        ("autocontrast", {"cutoff": -1}),
+    ],
+)
+def test_photo_enhancement_rejects_invalid_parameters(
+    tmp_path: Path,
+    operation: str,
+    parameters: dict[str, Any],
+) -> None:
+    app = create_app(index_path=tmp_path / "missing.npz", config=_test_config(tmp_path))
+    client = _authenticated_client(app)
+    upload = client.post(
+        "/api/images",
+        data={"image": (BytesIO(_png_bytes((130, 90, 55))), "sample.png")},
+        content_type="multipart/form-data",
+    )
+    image_id = upload.json["results"][0]["id"]
+
+    response = client.post(
+        f"/api/images/{image_id}/transform",
+        json={"operation": operation, **parameters},
+    )
+
+    assert response.status_code == 400
+    assert "error" in response.json
+
+
+def test_transformation_preview_returns_png_without_creating_gallery_image(
+    tmp_path: Path,
+) -> None:
+    app = create_app(index_path=tmp_path / "missing.npz", config=_test_config(tmp_path))
+    client = _authenticated_client(app)
+    upload = client.post(
+        "/api/images",
+        data={"image": (BytesIO(_png_bytes((130, 90, 55))), "sample.png")},
+        content_type="multipart/form-data",
+    )
+    image = upload.json["results"][0]
+
+    preview = client.post(
+        f"/api/images/{image['id']}/transform/preview",
+        json={"operation": "sepia"},
+    )
+
+    assert preview.status_code == 200
+    assert preview.mimetype == "image/png"
+    assert Image.open(BytesIO(preview.data)).size == (image["width"], image["height"])
+    assert client.get("/api/images").json["images"] == [image]
+
+
+def test_geometry_transformations_support_ratio_rotation_and_interpolation(
+    tmp_path: Path,
+) -> None:
+    app = create_app(index_path=tmp_path / "missing.npz", config=_test_config(tmp_path))
+    client = _authenticated_client(app)
+    image_stream = BytesIO()
+    Image.new("RGB", (30, 20), (100, 140, 180)).save(image_stream, format="PNG")
+    image_stream.seek(0)
+    upload = client.post(
+        "/api/images",
+        data={"image": (image_stream, "rectangle.png")},
+        content_type="multipart/form-data",
+    )
+    original = upload.json["results"][0]
+
+    cropped = client.post(
+        f"/api/images/{original['id']}/transform",
+        json={"operation": "crop", "aspect_ratio": "1:1"},
+    )
+    assert cropped.status_code == 201
+    assert (cropped.json["width"], cropped.json["height"]) == (20, 20)
+    assert cropped.json["filename"] == "rectangle_crop_1x1.png"
+
+    rotated = client.post(
+        f"/api/images/{original['id']}/transform",
+        json={"operation": "rotate", "degrees": 45, "interpolation": "bicubic"},
+    )
+    assert rotated.status_code == 201
+    assert rotated.json["width"] > original["width"]
+    assert rotated.json["height"] > original["height"]
+    assert rotated.json["filename"] == "rectangle_rotate45_bicubic.png"
+
+    resized = client.post(
+        f"/api/images/{original['id']}/transform",
+        json={
+            "operation": "resize",
+            "width": 40,
+            "height": 40,
+            "keep_aspect_ratio": True,
+            "interpolation": "bilinear",
+        },
+    )
+    assert resized.status_code == 201
+    assert (resized.json["width"], resized.json["height"]) == (40, 27)
+    assert resized.json["filename"] == "rectangle_resize_40x40_bilinear.png"
+
+
+def test_background_analysis_returns_visuals_and_checks_image_ownership(
+    tmp_path: Path,
+) -> None:
+    app = create_app(index_path=tmp_path / "missing.npz", config=_test_config(tmp_path))
+    client = _authenticated_client(app)
+    source = Image.new("RGB", (64, 64), (245, 245, 245))
+    for x in range(16, 48):
+        for y in range(16, 48):
+            source.putpixel((x, y), (20, 70, 200))
+    image_stream = BytesIO()
+    source.save(image_stream, format="PNG")
+    image_stream.seek(0)
+    upload = client.post(
+        "/api/images",
+        data={"image": (image_stream, "object.png")},
+        content_type="multipart/form-data",
+    )
+    image = upload.json["results"][0]
+
+    analysis = client.get(f"/api/images/{image['id']}/analysis")
+    assert analysis.status_code == 200
+    assert analysis.json["recommended_mode"] == "adaptive"
+    assert analysis.json["mask_available"] is True
+    assert analysis.json["mask_fraction"] == 0.25
+
+    mask = client.get(analysis.json["mask_url"])
+    background_map = client.get(analysis.json["background_map_url"])
+    assert mask.status_code == background_map.status_code == 200
+    assert Image.open(BytesIO(mask.data)).mode == "L"
+    assert Image.open(BytesIO(background_map.data)).mode == "L"
+
+    other_client = app.test_client()
+    assert other_client.post(
+        "/api/auth/register",
+        json={"username": "analysis-user", "password": "valid-password-789"},
+    ).status_code == 201
+    assert other_client.get(f"/api/images/{image['id']}/analysis").status_code == 404
+    assert other_client.get(f"/api/images/{image['id']}/mask").status_code == 404
+
+
+def test_gallery_sorting_supports_name_and_creation_order(tmp_path: Path) -> None:
+    app = create_app(index_path=tmp_path / "missing.npz", config=_test_config(tmp_path))
+    client = _authenticated_client(app)
+    client.post(
+        "/api/images",
+        data={
+            "images": [
+                (BytesIO(_png_bytes((20, 30, 40))), "zeta.png"),
+                (BytesIO(_png_bytes((40, 50, 60))), "alpha.png"),
+                (BytesIO(_png_bytes((60, 70, 80))), "middle.png"),
+            ]
+        },
+        content_type="multipart/form-data",
+    )
+
+    by_name = client.get("/api/images?sort=name_asc")
+    by_creation = client.get("/api/images?sort=created_asc")
+
+    assert [image["filename"] for image in by_name.json["images"]] == [
+        "alpha.png",
+        "middle.png",
+        "zeta.png",
+    ]
+    assert [image["filename"] for image in by_creation.json["images"]] == [
+        "zeta.png",
+        "alpha.png",
+        "middle.png",
+    ]
+    by_search = client.get("/api/images?q=ALPHA")
+    assert [image["filename"] for image in by_search.json["images"]] == ["alpha.png"]
+    assert client.get("/api/images?sort=invalid").status_code == 400
+
+
+def test_old_search_sessions_are_purged_by_last_activity(tmp_path: Path) -> None:
+    app = create_app(index_path=tmp_path / "missing.npz", config=_test_config(tmp_path))
+    client = _authenticated_client(app)
+    user_id = client.get("/api/auth/me").json["id"]
+    with app.app_context():
+        database = get_db()
+        database.executemany(
+            """
+            INSERT INTO search_sessions (
+                id, user_id, index_fingerprint, query_vector, weights, result_ids, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    "old-session",
+                    user_id,
+                    "fingerprint",
+                    "[0.0]",
+                    "[1.0]",
+                    "[]",
+                    "2000-01-01T00:00:00.000Z",
+                ),
+                (
+                    "new-session",
+                    user_id,
+                    "fingerprint",
+                    "[0.0]",
+                    "[1.0]",
+                    "[]",
+                    "2099-01-01T00:00:00.000Z",
+                ),
+            ],
+        )
+        database.commit()
+
+        removed = purge_old_sessions(days=7)
+        remaining = database.execute(
+            "SELECT id FROM search_sessions ORDER BY id"
+        ).fetchall()
+
+    assert removed == 1
+    assert [row["id"] for row in remaining] == ["new-session"]
 
 
 def test_search_accepts_a_gallery_image_as_query(tmp_path: Path) -> None:

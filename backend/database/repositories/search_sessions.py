@@ -23,6 +23,18 @@ def create_search_session(session_id: str, search_session: SearchSession) -> Non
     get_db().commit()
 
 
+def purge_old_sessions(days: int = 7) -> int:
+    """Delete search sessions that have been inactive for ``days`` days."""
+    if type(days) is not int or days < 1:
+        raise ValueError("days doit être un entier supérieur ou égal à 1.")
+    cursor = get_db().execute(
+        "DELETE FROM search_sessions WHERE julianday(updated_at) < julianday('now', ?)",
+        (f"-{days} days",),
+    )
+    get_db().commit()
+    return max(0, cursor.rowcount)
+
+
 def get_search_session(session_id: str, user_id: int) -> SearchSession | None:
     row = get_db().execute(
         """

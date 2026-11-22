@@ -12,6 +12,7 @@ from flask_restful import Api
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from backend.database.connection import init_db
+from backend.database.repositories.search_sessions import purge_old_sessions
 from backend.domain.models import DatasetIndex
 from backend.domain.retrieval import index_fingerprint
 from backend.routes.auth import auth_api
@@ -71,6 +72,7 @@ def create_app(
             str(PROJECT_ROOT / "GHIM-10K"),
         ),
         MAX_CONTENT_LENGTH=64 * 1024 * 1024,
+        SEARCH_SESSION_RETENTION_DAYS=int(os.environ.get("SEARCH_SESSION_RETENTION_DAYS", "7")),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "").lower()
@@ -84,6 +86,8 @@ def create_app(
         app.logger.warning("SECRET_KEY is unset; sessions will expire when the app restarts.")
 
     init_db(app)
+    with app.app_context():
+        purge_old_sessions(app.config["SEARCH_SESSION_RETENTION_DAYS"])
     app.register_blueprint(auth_api)
     app.register_blueprint(gallery_api)
     app.register_blueprint(batch_api)

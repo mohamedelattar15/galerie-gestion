@@ -17,6 +17,8 @@ export default function App() {
   const [galleryOffset, setGalleryOffset] = useState(0);
   const [galleryLoading, setGalleryLoading] = useState(false);
   const galleryCategoryRef = useRef(null);
+  const gallerySortRef = useRef("created_desc");
+  const gallerySearchRef = useRef("");
   const [toasts, setToasts] = useState([]);
   const toastId = useRef(0);
 
@@ -37,25 +39,32 @@ export default function App() {
     setCategories(await api("/api/categories"));
   }, []);
 
-  const refreshGallery = useCallback(async (offset = 0, categoryId = undefined) => {
-    if (categoryId !== undefined) galleryCategoryRef.current = categoryId;
-    const activeCategoryId = galleryCategoryRef.current;
-    setGalleryLoading(true);
-    try {
-      const query = new URLSearchParams({
-        limit: String(GALLERY_PAGE_SIZE),
-        offset: String(offset),
-      });
-      if (activeCategoryId !== null && activeCategoryId !== "") {
-        query.set("category_id", String(activeCategoryId));
+  const refreshGallery = useCallback(
+    async (offset = 0, categoryId = undefined, sort = undefined, search = undefined) => {
+      if (categoryId !== undefined) galleryCategoryRef.current = categoryId;
+      if (sort !== undefined) gallerySortRef.current = sort;
+      if (search !== undefined) gallerySearchRef.current = search;
+      const activeCategoryId = galleryCategoryRef.current;
+      setGalleryLoading(true);
+      try {
+        const query = new URLSearchParams({
+          limit: String(GALLERY_PAGE_SIZE),
+          offset: String(offset),
+          sort: gallerySortRef.current,
+        });
+        if (activeCategoryId !== null && activeCategoryId !== "") {
+          query.set("category_id", String(activeCategoryId));
+        }
+        if (gallerySearchRef.current) query.set("q", gallerySearchRef.current);
+        const result = await api(`/api/images?${query.toString()}`);
+        setImages(result.images);
+        setGalleryOffset(offset);
+      } finally {
+        setGalleryLoading(false);
       }
-      const result = await api(`/api/images?${query.toString()}`);
-      setImages(result.images);
-      setGalleryOffset(offset);
-    } finally {
-      setGalleryLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     api("/api/auth/me")
@@ -69,6 +78,8 @@ export default function App() {
       setCategories([]);
       setImages([]);
       galleryCategoryRef.current = null;
+      gallerySortRef.current = "created_desc";
+      gallerySearchRef.current = "";
       return;
     }
     Promise.all([refreshCategories(), refreshGallery()]).catch((error) =>

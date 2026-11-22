@@ -22,7 +22,11 @@ export default function GalleryPanel({
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [downloadingSelection, setDownloadingSelection] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [sortBy, setSortBy] = useState("created_desc");
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const categoryNames = new Map(categories.map((category) => [category.id, category.name]));
   const hasPreviousPage = offset > 0;
   const hasNextPage = images.length === pageSize;
@@ -30,7 +34,17 @@ export default function GalleryPanel({
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
 
   function refreshGalleryPage(nextOffset = offset) {
-    return onRefreshGallery(nextOffset, categoryFilter || null);
+    return onRefreshGallery(nextOffset, categoryFilter || null, sortBy, appliedSearch);
+  }
+
+  function submitSearch(event) {
+    event.preventDefault();
+    const search = searchInput.trim();
+    setAppliedSearch(search);
+    setSelectedIds(new Set());
+    onRefreshGallery(0, categoryFilter || null, sortBy, search).catch((error) =>
+      showStatus(error.message, true),
+    );
   }
 
   function categoryPath(category) {
@@ -137,6 +151,37 @@ export default function GalleryPanel({
     }
   }
 
+  async function downloadSelectedImages() {
+    const ids = [...selectedIds];
+    setDownloadingSelection(true);
+    try {
+      const response = await fetch("/api/images/batch-download", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_ids: ids }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || `Le téléchargement a échoué (${response.status}).`);
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = "galerie-images.zip";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+      showStatus(`${ids.length} image(s) ajoutée(s) à l'archive ZIP.`);
+    } catch (error) {
+      showStatus(error.message, true);
+    } finally {
+      setDownloadingSelection(false);
+    }
+  }
+
   if (selected) {
     return (
       <>
@@ -175,7 +220,9 @@ export default function GalleryPanel({
                 const value = event.target.value;
                 setCategoryFilter(value);
                 setSelectedIds(new Set());
-                onRefreshGallery(0, value || null).catch((error) => showStatus(error.message, true));
+                onRefreshGallery(0, value || null, sortBy, appliedSearch).catch((error) =>
+                  showStatus(error.message, true),
+                );
               }}
               value={categoryFilter}
             >
@@ -185,6 +232,24 @@ export default function GalleryPanel({
                   {categoryPath(category)}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="gallery-filter">
+            Trier par
+            <select
+              onChange={(event) => {
+                const value = event.target.value;
+                setSortBy(value);
+                setSelectedIds(new Set());
+                onRefreshGallery(0, categoryFilter || null, value, appliedSearch).catch((error) =>
+                  showStatus(error.message, true),
+                );
+              }}
+              value={sortBy}
+            >
+              <option value="created_desc">Plus récentes</option>
+              <option value="created_asc">Plus anciennes</option>
+              <option value="name_asc">Nom (A–Z)</option>
             </select>
           </label>
           {images.length > 0 && (
@@ -209,6 +274,15 @@ export default function GalleryPanel({
               >
                 Déplacer la sélection
               </button>
+              <button
+                className="button button-secondary"
+                disabled={downloadingSelection}
+                onClick={downloadSelectedImages}
+                type="button"
+              >
+                <Download size={16} />
+                {downloadingSelection ? "Préparation du ZIP…" : "Télécharger la sélection"}
+              </button>
             </>
           )}
           <button className="button button-quiet" onClick={() => refreshGalleryPage(offset)} type="button">
@@ -216,6 +290,36 @@ export default function GalleryPanel({
           </button>
         </div>
       </div>
+
+      <form className="gallery-search" onSubmit={submitSearch}>
+        <label>
+          Rechercher par nom de fichier
+          <input
+            maxLength="100"
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Ex. vacances"
+            type="search"
+            value={searchInput}
+          />
+        </label>
+        <button className="button button-secondary" type="submit">Rechercher</button>
+        {appliedSearch && (
+          <button
+            className="button button-quiet"
+            onClick={() => {
+              setSearchInput("");
+              setAppliedSearch("");
+              setSelectedIds(new Set());
+              onRefreshGallery(0, categoryFilter || null, sortBy, "").catch((error) =>
+                showStatus(error.message, true),
+              );
+            }}
+            type="button"
+          >
+            Effacer
+          </button>
+        )}
+      </form>
 
       {images.length === 0 ? (
         <div className="empty-state">

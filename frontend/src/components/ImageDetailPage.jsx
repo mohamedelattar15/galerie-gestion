@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   Download,
+  Eye,
   ImagePlus,
   RefreshCw,
   Search,
@@ -9,6 +10,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api.js";
+import BackgroundAnalysis from "./BackgroundAnalysis.jsx";
 
 const HISTOGRAM_BLOCKS = [
   ["Teinte", 0, 16, "#287b78"],
@@ -167,6 +169,8 @@ export default function ImageDetailPage({
             }}
             showStatus={showStatus}
           />
+
+          <BackgroundAnalysis image={image} />
 
           {derived && (
             <section className="panel derived-panel">
@@ -346,22 +350,113 @@ function Histogram({ color, values }) {
 function TransformPanel({ image, onChanged, showStatus }) {
   const [operation, setOperation] = useState("rotate");
   const [degrees, setDegrees] = useState(90);
+  const [rotationInterpolation, setRotationInterpolation] = useState("nearest");
+  const [resizeInterpolation, setResizeInterpolation] = useState("lanczos");
   const [direction, setDirection] = useState("horizontal");
-  const [width, setWidth] = useState(Math.round(image.width / 2));
-  const [height, setHeight] = useState(Math.round(image.height / 2));
+  const [width, setWidth] = useState(Math.max(1, Math.round(image.width / 2)));
+  const [height, setHeight] = useState(Math.max(1, Math.round(image.height / 2)));
   const [box, setBox] = useState([0, 0, image.width, image.height]);
+  const [keepAspectRatio, setKeepAspectRatio] = useState(true);
+  const [cropRatio, setCropRatio] = useState("free");
+  const [factor, setFactor] = useState(1);
+  const [radius, setRadius] = useState(2);
+  const [cutoff, setCutoff] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const previewUrlRef = useRef(null);
 
-  async function transform(event) {
-    event.preventDefault();
+  function clearPreview() {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    previewUrlRef.current = null;
+    setPreviewUrl(null);
+  }
+
+  useEffect(
+    () => () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setWidth(Math.max(1, Math.round(image.width / 2)));
+    setHeight(Math.max(1, Math.round(image.height / 2)));
+    setBox([0, 0, image.width, image.height]);
+    setCropRatio("free");
+    clearPreview();
+  }, [image.id, image.width, image.height]);
+
+  function buildPayload() {
     const body = { operation };
-    if (operation === "rotate") body.degrees = Number(degrees);
+    if (operation === "rotate") {
+      body.degrees = Number(degrees);
+      body.interpolation = rotationInterpolation;
+    }
     if (operation === "flip") body.direction = direction;
     if (operation === "resize") {
       body.width = Number(width);
       body.height = Number(height);
+      body.keep_aspect_ratio = keepAspectRatio;
+      body.interpolation = resizeInterpolation;
     }
-    if (operation === "crop") body.box = box.map(Number);
+    if (operation === "crop") {
+      if (cropRatio === "free") body.box = box.map(Number);
+      else body.aspect_ratio = cropRatio;
+    }
+    if (["brightness", "contrast", "saturation", "sharpness"].includes(operation)) {
+      body.factor = Number(factor);
+    }
+    if (operation === "blur") body.radius = Number(radius);
+    if (operation === "autocontrast") body.cutoff = Number(cutoff);
+    return body;
+  }
+
+  function updateResizeWidth(value) {
+    setWidth(value);
+    const numericWidth = Number(value);
+    if (keepAspectRatio && numericWidth > 0) {
+      setHeight(String(Math.max(1, Math.round(numericWidth * image.height / image.width))));
+    }
+    clearPreview();
+  }
+
+  function updateResizeHeight(value) {
+    setHeight(value);
+    const numericHeight = Number(value);
+    if (keepAspectRatio && numericHeight > 0) {
+      setWidth(String(Math.max(1, Math.round(numericHeight * image.width / image.height))));
+    }
+    clearPreview();
+  }
+
+  async function preview() {
+    setPreviewLoading(true);
+    try {
+      const response = await fetch(`/api/images/${image.id}/transform/preview`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildPayload()),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || `L'aperçu a échoué (${response.status}).`);
+      }
+      const nextUrl = URL.createObjectURL(await response.blob());
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = nextUrl;
+      setPreviewUrl(nextUrl);
+    } catch (error) {
+      showStatus(error.message, true);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function transform(event) {
+    event.preventDefault();
+    const body = buildPayload();
     setLoading(true);
     try {
       const created = await api(`/api/images/${image.id}/transform`, {
@@ -370,6 +465,7 @@ function TransformPanel({ image, onChanged, showStatus }) {
         body: JSON.stringify(body),
       });
       await onChanged(created);
+      clearPreview();
       showStatus("Image dérivée créée; l’originale est conservée.");
     } catch (error) {
       showStatus(error.message, true);
@@ -394,29 +490,66 @@ function TransformPanel({ image, onChanged, showStatus }) {
       <form className="transform-panel" onSubmit={transform}>
         <label>
           Transformation
-          <select onChange={(event) => setOperation(event.target.value)} value={operation}>
-            <option value="rotate">Rotation</option>
-            <option value="flip">Miroir</option>
-            <option value="resize">Redimensionner</option>
-            <option value="crop">Recadrer</option>
+          <select
+            onChange={(event) => {
+              setOperation(event.target.value);
+              clearPreview();
+            }}
+            value={operation}
+          >
+            <optgroup label="Géométrie">
+              <option value="rotate">Rotation</option>
+              <option value="flip">Miroir</option>
+              <option value="resize">Redimensionner</option>
+              <option value="crop">Recadrer</option>
+            </optgroup>
+            <optgroup label="Couleur">
+              <option value="brightness">Luminosité</option>
+              <option value="contrast">Contraste</option>
+              <option value="saturation">Saturation</option>
+              <option value="grayscale">Niveaux de gris</option>
+              <option value="sepia">Sépia</option>
+              <option value="autocontrast">Auto-contraste</option>
+            </optgroup>
+            <optgroup label="Filtres">
+              <option value="sharpness">Netteté</option>
+              <option value="blur">Flou gaussien</option>
+            </optgroup>
           </select>
         </label>
 
         {operation === "rotate" && (
-          <label>
-            Angle (sens antihoraire)
-            <select onChange={(event) => setDegrees(event.target.value)} value={degrees}>
-              <option value="90">90°</option>
-              <option value="180">180°</option>
-              <option value="270">270°</option>
-            </select>
-          </label>
+          <div className="field-row">
+            <label>
+              Angle libre (degrés antihoraires)
+              <input
+                max="360"
+                min="-360"
+                onChange={(event) => { setDegrees(event.target.value); clearPreview(); }}
+                step="0.5"
+                type="number"
+                value={degrees}
+              />
+            </label>
+            <label>
+              Interpolation
+              <select
+                onChange={(event) => { setRotationInterpolation(event.target.value); clearPreview(); }}
+                value={rotationInterpolation}
+              >
+                <option value="nearest">Voisin le plus proche</option>
+                <option value="bilinear">Bilinéaire</option>
+                <option value="bicubic">Bicubique</option>
+                <option value="lanczos">Lanczos</option>
+              </select>
+            </label>
+          </div>
         )}
 
         {operation === "flip" && (
           <label>
             Direction
-            <select onChange={(event) => setDirection(event.target.value)} value={direction}>
+            <select onChange={(event) => { setDirection(event.target.value); clearPreview(); }} value={direction}>
               <option value="horizontal">Horizontale</option>
               <option value="vertical">Verticale</option>
             </select>
@@ -424,52 +557,205 @@ function TransformPanel({ image, onChanged, showStatus }) {
         )}
 
         {operation === "resize" && (
-          <div className="field-row">
-            <label>
-              Largeur
+          <>
+            <div className="field-row">
+              <label>
+                Largeur
+                <input
+                  min="1"
+                  onChange={(event) => updateResizeWidth(event.target.value)}
+                  type="number"
+                  value={width}
+                />
+              </label>
+              <label>
+                Hauteur
+                <input
+                  min="1"
+                  onChange={(event) => updateResizeHeight(event.target.value)}
+                  type="number"
+                  value={height}
+                />
+              </label>
+            </div>
+            <label className="transform-checkbox">
               <input
-                min="1"
-                onChange={(event) => setWidth(event.target.value)}
-                type="number"
-                value={width}
+                checked={keepAspectRatio}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setKeepAspectRatio(checked);
+                  if (checked) {
+                    const numericWidth = Number(width);
+                    if (numericWidth > 0) {
+                      setHeight(
+                        String(Math.max(1, Math.round((numericWidth * image.height) / image.width))),
+                      );
+                    }
+                  }
+                  clearPreview();
+                }}
+                type="checkbox"
               />
+              Conserver les proportions
             </label>
             <label>
-              Hauteur
-              <input
-                min="1"
-                onChange={(event) => setHeight(event.target.value)}
-                type="number"
-                value={height}
-              />
+              Interpolation
+              <select
+                onChange={(event) => {
+                  setResizeInterpolation(event.target.value);
+                  clearPreview();
+                }}
+                value={resizeInterpolation}
+              >
+                <option value="nearest">Voisin le plus proche</option>
+                <option value="bilinear">Bilinéaire</option>
+                <option value="bicubic">Bicubique</option>
+                <option value="lanczos">Lanczos</option>
+              </select>
             </label>
-          </div>
+          </>
         )}
 
         {operation === "crop" && (
-          <div className="field-row field-row-4">
-            {["Gauche", "Haut", "Droite", "Bas"].map((label, index) => (
-              <label key={label}>
-                {label}
-                <input
-                  min="0"
-                  onChange={(event) => {
-                    const next = [...box];
-                    next[index] = event.target.value;
-                    setBox(next);
-                  }}
-                  type="number"
-                  value={box[index]}
-                />
-              </label>
-            ))}
-          </div>
+          <>
+            <label>
+              Format du recadrage
+              <select
+                onChange={(event) => { setCropRatio(event.target.value); clearPreview(); }}
+                value={cropRatio}
+              >
+                <option value="free">Recadrage libre (coordonnées)</option>
+                <option value="1:1">Carré 1:1</option>
+                <option value="4:3">Paysage 4:3</option>
+                <option value="16:9">Panoramique 16:9</option>
+              </select>
+            </label>
+            {cropRatio === "free" ? (
+              <div className="field-row field-row-4">
+                {["Gauche", "Haut", "Droite", "Bas"].map((label, index) => (
+                  <label key={label}>
+                    {label}
+                    <input
+                      min="0"
+                      onChange={(event) => {
+                        const next = [...box];
+                        next[index] = event.target.value;
+                        setBox(next);
+                        clearPreview();
+                      }}
+                      type="number"
+                      value={box[index]}
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="hint">Le recadrage {cropRatio} est centré automatiquement.</p>
+            )}
+          </>
         )}
 
-        <button className="button button-primary" disabled={loading} type="submit">
+        {["brightness", "contrast", "saturation", "sharpness"].includes(operation) && (
+          <label className="transform-adjustment">
+            {({ brightness: "Luminosité", contrast: "Contraste", saturation: "Saturation", sharpness: "Netteté" })[operation]}
+            <span className="transform-adjustment-inputs">
+              <input
+                max="2"
+                min="0"
+                onChange={(event) => { setFactor(event.target.value); clearPreview(); }}
+                step="0.05"
+                type="range"
+                value={factor}
+              />
+              <input
+                aria-label="Facteur de réglage"
+                max="2"
+                min="0"
+                onChange={(event) => { setFactor(event.target.value); clearPreview(); }}
+                step="0.05"
+                type="number"
+                value={factor}
+              />
+            </span>
+            <small className="hint">1 conserve la valeur d’origine.</small>
+          </label>
+        )}
+
+        {operation === "blur" && (
+          <label className="transform-adjustment">
+            Rayon du flou
+            <span className="transform-adjustment-inputs">
+              <input
+                max="20"
+                min="0"
+                onChange={(event) => { setRadius(event.target.value); clearPreview(); }}
+                step="0.5"
+                type="range"
+                value={radius}
+              />
+              <input
+                max="20"
+                min="0"
+                onChange={(event) => { setRadius(event.target.value); clearPreview(); }}
+                step="0.5"
+                type="number"
+                value={radius}
+              />
+            </span>
+          </label>
+        )}
+
+        {operation === "autocontrast" && (
+          <label className="transform-adjustment">
+            Coupure de l’auto-contraste (%)
+            <span className="transform-adjustment-inputs">
+              <input
+                max="10"
+                min="0"
+                onChange={(event) => { setCutoff(event.target.value); clearPreview(); }}
+                step="0.1"
+                type="range"
+                value={cutoff}
+              />
+              <input
+                max="10"
+                min="0"
+                onChange={(event) => { setCutoff(event.target.value); clearPreview(); }}
+                step="0.1"
+                type="number"
+                value={cutoff}
+              />
+            </span>
+          </label>
+        )}
+
+        <div className="transform-actions">
+          <button
+            className="button button-secondary"
+            disabled={loading || previewLoading}
+            onClick={preview}
+            type="button"
+          >
+            <Eye size={16} /> {previewLoading ? "Préparation de l’aperçu…" : "Aperçu"}
+          </button>
+          <button className="button button-primary" disabled={loading || previewLoading} type="submit">
           {loading ? "Création…" : "Créer la copie transformée"}
-        </button>
+          </button>
+        </div>
       </form>
+
+      {previewUrl && (
+        <div className="transform-preview-grid">
+          <figure>
+            <img alt={`Image originale ${image.filename}`} src={image.file_url} />
+            <figcaption>Originale</figcaption>
+          </figure>
+          <figure>
+            <img alt={`Aperçu transformé de ${image.filename}`} src={previewUrl} />
+            <figcaption>Aperçu du résultat</figcaption>
+          </figure>
+        </div>
+      )}
     </section>
   );
 }

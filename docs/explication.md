@@ -693,13 +693,20 @@ Les endpoints suivants sont réellement exposés par l'API.
 | GET | `/api/categories` | Lister les catégories |
 | POST | `/api/categories` | Créer une catégorie |
 | DELETE | `/api/categories/<id>` | Supprimer une catégorie vide |
-| GET | `/api/images` | Lister la galerie (`limit`, `offset`, `category_id`) |
+| GET | `/api/images` | Lister la galerie (`limit`, `offset`, `category_id`, `sort`, `q`) |
 | POST | `/api/images` | Importer une ou plusieurs images |
 | GET | `/api/images/<id>` | Métadonnées d'une image |
 | GET | `/api/images/<id>/file` | Aperçu ou téléchargement (`?download=1`) |
 | GET | `/api/images/<id>/descriptors` | Calculer les descripteurs d'une image |
 | POST | `/api/images/<id>/transform` | Créer une image dérivée |
+| POST | `/api/images/<id>/transform/preview` | Prévisualiser une transformation sans l'enregistrer |
+| GET | `/api/images/<id>/analysis` | Analyser le contraste centre/bordures et le mode conseillé |
+| GET | `/api/images/<id>/mask` | Visualiser le masque objet/fond si disponible |
+| GET | `/api/images/<id>/background-map` | Visualiser la différence à la couleur du fond estimé |
 | DELETE | `/api/images/<id>` | Supprimer une image |
+| POST | `/api/images/batch-delete` | Supprimer plusieurs images |
+| POST | `/api/images/batch-move` | Déplacer plusieurs images dans une catégorie |
+| POST | `/api/images/batch-download` | Télécharger une sélection en ZIP |
 | POST | `/api/features/extract` | Extraire les descripteurs d'un lot d'images |
 | POST | `/api/search` | Recherche initiale |
 | POST | `/api/search/feedback` | Appliquer une itération FRE |
@@ -766,6 +773,8 @@ Les valeurs sont uniquement illustratives. `ignored_non_relevant_count` rappelle
 - Importer une ou plusieurs images.
 - Télécharger une image.
 - Supprimer une ou plusieurs images.
+- Sélectionner plusieurs images, puis les supprimer, déplacer ou télécharger en ZIP.
+- Filtrer par catégorie, rechercher par nom de fichier et trier la galerie.
 - Organiser les images par catégories.
 - Créer des catégories et sous-catégories.
 
@@ -775,12 +784,16 @@ Permettre à l'utilisateur de créer de nouvelles images à partir d'images exis
 
 Exemples :
 
-- Recadrage (Crop).
-- Redimensionnement (Resize).
-- Rotation par multiples de 90°.
-- Retournement horizontal ou vertical.
+- Recadrage libre ou avec proportions 1:1, 4:3 et 16:9.
+- Redimensionnement avec interpolation choisie et conservation facultative du ratio.
+- Rotation libre et retournement horizontal ou vertical.
+- Réglages de luminosité, contraste, saturation et netteté.
+- Conversion en niveaux de gris ou sépia, flou gaussien et auto-contraste.
+- Aperçu avant création de la copie transformée.
 
 L'originale est toujours conservée; la copie transformée est enregistrée comme image dérivée.
+
+L'onglet d'analyse du fond fournit une carte de différence et, lorsque la séparation centre/bordures le permet, un masque estimé. Cette estimation repose sur une hypothèse de fond relativement uniforme; elle ne constitue pas une segmentation sémantique.
 
 ### 11.4. Visualisation des descripteurs
 

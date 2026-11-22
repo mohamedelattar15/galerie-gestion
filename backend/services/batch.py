@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from tempfile import SpooledTemporaryFile
 from typing import Callable
+from zipfile import ZIP_DEFLATED, ZipFile
+
+from werkzeug.utils import secure_filename
 
 from backend.database.repositories.gallery import (
     category_is_owned,
@@ -24,6 +28,10 @@ MAX_BATCH_SIZE = 100
 
 class BatchError(ValueError):
     """A batch request that cannot be executed at all."""
+
+    def __init__(self, message: str, status_code: int = 400) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 @dataclass
@@ -123,3 +131,49 @@ def move_images(
         move_images_to_category(user_id, movable, category_id)
         report.succeeded.extend(movable)
     return report
+
+
+def create_images_archive(
+    user_id: int,
+    image_ids: object,
+    storage_dir: Path,
+    stored_path: Callable[[Path, str], Path],
+) -> SpooledTemporaryFile[bytes]:
+    """Create a ZIP of owned images, spilling larger archives to disk."""
+    identifiers = _validate_ids(image_ids)
+    owned = owned_image_records(user_id, identifiers)
+    if len(owned) != len(identifiers):
+        raise BatchError("Une ou plusieurs images n'existent pas.", status_code=404)
+
+    archive = SpooledTemporaryFile(max_size=16 * 1024 * 1024, mode="w+b")
+    try:
+        with ZipFile(archive, mode="w", compression=ZIP_DEFLATED) as zip_file:
+            for image_id in identifiers:
+                row = owned[image_id]
+                try:
+                    image_path = stored_path(storage_dir, str(row["stored_name"]))
+                except ValueError as error:
+                    raise BatchError(
+                        "Le chemin d'une image sélectionnée est invalide.",
+                        status_code=404,
+                    ) from error
+                if not image_path.is_file():
+                    raise BatchError(
+                        "Le fichier d'une image sélectionnée est introuvable.",
+                        status_code=404,
+                    )
+
+                filename = secure_filename(Path(str(row["original_filename"])).name)
+                filename = filename or f"image_{image_id}"
+                try:
+                    zip_file.write(image_path, arcname=f"{image_id}_{filename}")
+                except OSError as error:
+                    raise BatchError(
+                        "Le fichier d'une image sélectionnée est introuvable.",
+                        status_code=404,
+                    ) from error
+        archive.seek(0)
+        return archive
+    except Exception:
+        archive.close()
+        raise
