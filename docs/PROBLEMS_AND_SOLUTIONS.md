@@ -30,3 +30,5 @@ La distance visuelle ne correspond pas toujours au jugement de l’utilisateur :
 ## Comment vérifier une amélioration
 
 Une modification de la représentation doit être évaluée avec les mêmes requêtes, le même `top_k`, le même protocole de feedback et plusieurs graines. Ne comparez pas une recherche où l’utilisateur juge uniquement les dix résultats affichés à une simulation qui utilise cinquante candidats sans expliquer la différence. Consultez [EVALUATION.md](EVALUATION.md).
+
+Pour les détails de la méthode de masque et les améliorations ciblant le sujet et le fond, consulter [Détection du sujet et traitement du fond](OBJECT_AND_BACKGROUND.md).

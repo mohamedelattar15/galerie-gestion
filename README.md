@@ -43,6 +43,8 @@ Trois modes de traitement du fond peuvent être indexés :
 
 FRE est calculée à chaque itération à partir des images pertinentes sélectionnées **dans les résultats courants**. Au moins deux images pertinentes sont nécessaires. Les retours négatifs sont acceptés par l’API, mais ne sont actuellement pas utilisés dans la formule de G13. Voir [Méthodes CBIR et FRE](docs/METHODS.md) pour les détails et les équations.
 
+La détection du sujet est heuristique : elle estime le fond à partir des bordures, puis produit un masque de pixels différents. Elle ne reconnaît pas les catégories d’objets. Les détails, limites et pistes pour améliorer ce traitement sont dans [Détection du sujet et traitement du fond](docs/OBJECT_AND_BACKGROUND.md).
+
 ## Architecture
 
 ```mermaid
