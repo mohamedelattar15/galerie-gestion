@@ -10,6 +10,7 @@ Cette documentation décrit le projet **tel qu’il est implémenté**. Le [`REA
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Organisation frontend, API, domaine, données et parcours d’une recherche. |
 | [METHODS.md](METHODS.md) | Descripteurs, traitement du fond, normalisation, distance et méthode FRE de G13. |
 | [OBJECT_AND_BACKGROUND.md](OBJECT_AND_BACKGROUND.md) | Algorithme de masque, séparabilité du fond, modes variance/adaptatif, échecs et pistes de correction. |
+| [ISSUES_AND_FIXES.md](ISSUES_AND_FIXES.md) | Problèmes relevés dans le projet et les échanges, corrections intégrées et limites qui restent. |
 | [API.md](API.md) | Routes HTTP, paramètres importants et conventions d’authentification. |
 | [PROBLEMS_AND_SOLUTIONS.md](PROBLEMS_AND_SOLUTIONS.md) | Problématique CBIR, problèmes traités, solutions et limites connues. |
 | [INSTALLATION.md](INSTALLATION.md) | Environnement, installation, indexation, exécution et configuration. |

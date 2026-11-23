@@ -113,7 +113,7 @@ La commande imprime le protocole et les métriques en JSON. Les résultats connu
 
 ## Documentation détaillée
 
-L’index des documents est dans [`docs/README.md`](docs/README.md). Il donne accès aux guides sur la stack, l’architecture, les méthodes, l’API, les problèmes traités et l’évaluation.
+L’index des documents est dans [`docs/README.md`](docs/README.md). Il donne accès aux guides sur la stack, l’architecture, les méthodes, l’API, les problèmes traités et l’évaluation. Le récapitulatif des [problèmes relevés et corrections déjà réalisées](docs/ISSUES_AND_FIXES.md) permet de retrouver les changements discutés dans le projet.
 
 ## Références
 
